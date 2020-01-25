@@ -69,7 +69,6 @@ class DefaultQubit(QubitDevice):
         'RX',
         'RY',
         'RZ',
-        'Rot',
         'CRX',
         'CRY',
         'CRZ',

@@ -326,10 +326,16 @@ def dot(x, y):
         fn, y = _get_dot_func(interface, y)
         func = lambda params, **kwargs: fn(x(params, **kwargs), y)
 
+        if hasattr(x, "metric_tensor"):
+            func.metric_tensor = x.metric_tensor
+
     elif hasattr(y, "interface"):
         interface = y.interface
         fn, x = _get_dot_func(interface, x)
         func = lambda params, **kwargs: fn(x, y(params, **kwargs))
+
+        if hasattr(y, "metric_tensor"):
+            func.metric_tensor = y.metric_tensor
 
     else:
         raise ValueError("At least one argument must be a QNodeCollection")
@@ -426,6 +432,7 @@ class QNodeCollection(Sequence):
     def __init__(self, qnodes=None):
         self.qnodes = []
         self.extend(qnodes or [])
+        self._metric_tensor = None
 
     @property
     def interface(self):
@@ -434,6 +441,22 @@ class QNodeCollection(Sequence):
             return None
 
         return self.qnodes[0].interface
+
+    def metric_tensor(self, *args, **kwargs):
+        """str, None: automatic differentiation interface used by the collection, if any"""
+        if not self.qnodes:
+            return None
+
+        if self._metric_tensor is None:
+            import numpy as np
+            tensors = [q.metric_tensor(*args, **kwargs) for q in self.qnodes]
+
+            if all(np.array_equal(i, tensors[0]) for i in tensors[1:]):
+                self._metric_tensor = self.qnodes[0].metric_tensor
+            else:
+                raise ValueError("Not all QNodes have the same metric tensor!")
+
+        return self._metric_tensor(*args, **kwargs)
 
     def append(self, qnode):
         """Appends a QNode to the collection. The appended QNode *must* have the same
