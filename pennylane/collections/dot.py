@@ -128,10 +128,16 @@ def dot(x, y):
         fn, y = _get_dot_func(interface, y)
         func = lambda params, **kwargs: fn(x(params, **kwargs), y)
 
+        if hasattr(x, "metric_tensor"):
+            func.metric_tensor = x.metric_tensor
+
     elif hasattr(y, "interface"):
         interface = y.interface
         fn, x = _get_dot_func(interface, x)
         func = lambda params, **kwargs: fn(x, y(params, **kwargs))
+
+        if hasattr(y, "metric_tensor"):
+            func.metric_tensor = y.metric_tensor
 
     else:
         raise ValueError("At least one argument must be a QNodeCollection")

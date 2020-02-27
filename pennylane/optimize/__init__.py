@@ -19,6 +19,7 @@ This module contains optimizers for the standard :mod:`QNode` class, which uses 
 # listed in alphabetical order to avoid circular imports
 from .adagrad import AdagradOptimizer
 from .adam import AdamOptimizer
+from .adam_ng import AdamNGOptimizer
 from .gradient_descent import GradientDescentOptimizer
 from .momentum import MomentumOptimizer
 from .nesterov_momentum import NesterovMomentumOptimizer
@@ -30,6 +31,7 @@ from .qng import QNGOptimizer
 __all__ = [
     "AdagradOptimizer",
     "AdamOptimizer",
+    "AdamNGOptimizer",
     "GradientDescentOptimizer",
     "MomentumOptimizer",
     "NesterovMomentumOptimizer",

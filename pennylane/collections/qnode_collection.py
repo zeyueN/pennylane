@@ -169,6 +169,22 @@ class QNodeCollection(Sequence):
 
         return self.qnodes[0].interface
 
+    def metric_tensor(self, *args, **kwargs):
+        """str, None: automatic differentiation interface used by the collection, if any"""
+        if not self.qnodes:
+            return None
+
+        if self._metric_tensor is None:
+            import numpy as np
+            tensors = [q.metric_tensor(*args, **kwargs) for q in self.qnodes]
+
+            if all(np.array_equal(i, tensors[0]) for i in tensors[1:]):
+                self._metric_tensor = self.qnodes[0].metric_tensor
+            else:
+                raise ValueError("Not all QNodes have the same metric tensor!")
+
+        return self._metric_tensor(*args, **kwargs)
+
     def append(self, qnode):
         """Appends a QNode to the collection. The appended QNode *must* have the same
         interface as the QNode collection."""
