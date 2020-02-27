@@ -160,6 +160,7 @@ class QNodeCollection(Sequence):
     def __init__(self, qnodes=None):
         self.qnodes = []
         self.extend(qnodes or [])
+        self._metric_tensor = None
 
     @property
     def interface(self):
