@@ -1,4 +1,4 @@
-# Copyright 2018-2019 Xanadu Quantum Technologies Inc.
+# Copyright 2018-2020 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ from setuptools import setup
 with open("pennylane_qchem/_version.py") as f:
     version = f.readlines()[-1].split()[-1].strip("\"'")
 
-requirements = ["pennylane", "openfermion", "openfermionpsi4", "openfermionpyscf"]
+requirements = ["pennylane", "openfermion", "openfermionpyscf", "openfermionpsi4"]
 
 info = {
     "name": "PennyLane-Qchem",

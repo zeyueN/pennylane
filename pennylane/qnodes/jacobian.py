@@ -1,4 +1,4 @@
-# Copyright 2019 Xanadu Quantum Technologies Inc.
+# Copyright 2018-2020 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,6 +35,13 @@ class JacobianQNode(BaseQNode):
         """dict[int, str]: map from flattened quantum function positional parameter index
         to the gradient method to be used with that parameter"""
 
+        if device.capabilities()["model"] == "qubit":
+            from .qubit import QubitQNode
+
+            if not isinstance(self, QubitQNode):
+                self._construct_metric_tensor = lambda *args, **kwargs: QubitQNode._construct_metric_tensor(self, *args, **kwargs)
+                self.metric_tensor = lambda *args, **kwargs: QubitQNode.metric_tensor(self, *args, **kwargs)
+
     metric_tensor = None
 
     @property
@@ -48,8 +55,6 @@ class JacobianQNode(BaseQNode):
         return detail.format(
             self.device.short_name, self.func.__name__, self.num_wires, self.interface
         )
-
-    __str__ = __repr__
 
     def _construct(self, args, kwargs):
         """Constructs the quantum circuit graph by calling the quantum function.

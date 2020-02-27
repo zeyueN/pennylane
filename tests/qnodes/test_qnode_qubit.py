@@ -1,4 +1,4 @@
-# Copyright 2019 Xanadu Quantum Technologies Inc.
+# Copyright 2018-2020 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -84,13 +84,36 @@ class TestBestMethod:
 class TestExpectationJacobian:
     """Jacobian integration tests for qubit expectations."""
 
+    @pytest.mark.parametrize("mult", [1, -2, 1.623, -0.051, 0])  # intergers, floats, zero
+    def test_parameter_multipliers(self, mult, tol):
+        """Test that various types and values of scalar multipliers for differentiable
+        qfunc parameters yield the correct gradients."""
+
+        def circuit(x):
+            qml.RY(mult * x, wires=[0])
+            return qml.expval(qml.PauliX(0))
+
+        dev = qml.device("default.qubit", wires=1)
+        q = QubitQNode(circuit, dev)
+
+        par = [0.1]
+
+        # gradients
+        exact = mult * np.cos(mult * np.array([par]))
+        grad_F = q.jacobian(par, method="F")
+        grad_A = q.jacobian(par, method="A")
+
+        # different methods must agree
+        assert grad_F == pytest.approx(exact, abs=tol)
+        assert grad_A == pytest.approx(exact, abs=tol)
+
     @pytest.mark.parametrize("reused_p", thetas ** 3 / 19)
     @pytest.mark.parametrize("other_p", thetas ** 2 / 1)
     def test_fanout_multiple_params(self, reused_p, other_p, tol):
         """Tests that the correct gradient is computed for qnodes which
         use the same parameter in multiple gates."""
 
-        from pennylane.plugins.default_qubit import Rotx as Rx, Roty as Ry, Rotz as Rz
+        from gate_data import Rotx as Rx, Roty as Ry, Rotz as Rz
 
         def expZ(state):
             return np.abs(state[0]) ** 2 - np.abs(state[1]) ** 2

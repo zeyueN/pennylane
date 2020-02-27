@@ -1,4 +1,4 @@
-# Copyright 2018 Xanadu Quantum Technologies Inc.
+# Copyright 2018-2020 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import numpy as np
 import pennylane as qml
 from pennylane._device import Device
 from pennylane.qnodes.base import BaseQNode, QuantumFunctionError, decompose_queue
+from pennylane.variable import VariableRef
 
 
 @pytest.fixture(scope="function")
@@ -49,7 +50,7 @@ def operable_mock_device_2_wires(monkeypatch):
     dev = Device
     with monkeypatch.context() as m:
         m.setattr(dev, "__abstractmethods__", frozenset())
-        m.setattr(dev, 'capabilities', lambda cls: {"model": "qubit"})
+        m.setattr(dev, "capabilities", lambda cls: {"model": "qubit"})
         m.setattr(dev, "operations", ["BasisState", "RX", "RY", "CNOT", "Rot", "PhaseShift"])
         m.setattr(dev, "observables", ["PauliX", "PauliY", "PauliZ"])
         m.setattr(dev, "reset", lambda self: None)
@@ -64,12 +65,16 @@ def operable_mock_CV_device_2_wires(monkeypatch):
 
     dev = Device
     with monkeypatch.context() as m:
-        m.setattr(dev, '__abstractmethods__', frozenset())
-        m.setattr(dev, 'operations', ["Displacement", "CubicPhase", "Squeezing", "Rotation", "Kerr", "Beamsplitter"])
-        m.setattr(dev, 'observables', ["X", "NumberOperator"])
-        m.setattr(dev, 'reset', lambda self: None)
-        m.setattr(dev, 'apply', lambda self, x, y, z: None)
-        m.setattr(dev, 'expval', lambda self, x, y, z: 1)
+        m.setattr(dev, "__abstractmethods__", frozenset())
+        m.setattr(
+            dev,
+            "operations",
+            ["Displacement", "CubicPhase", "Squeezing", "Rotation", "Kerr", "Beamsplitter"],
+        )
+        m.setattr(dev, "observables", ["X", "NumberOperator"])
+        m.setattr(dev, "reset", lambda self: None)
+        m.setattr(dev, "apply", lambda self, x, y, z: None)
+        m.setattr(dev, "expval", lambda self, x, y, z: 1)
         yield Device(wires=2)
 
 
@@ -194,6 +199,83 @@ class TestQNodeOperationQueue:
 
         assert out == expected_qnode_print.format(x=0.1)
 
+    def test_operation_appending(self, mock_device):
+        """Tests that operations are correctly appended."""
+        CNOT = qml.CNOT(wires=[0, 1])
+
+        def circuit(x):
+            qml._current_context._append_op(CNOT)
+            qml.RY(0.4, wires=[0])
+            qml.RZ(-0.2, wires=[1])
+
+            return qml.expval(qml.PauliX(0)), qml.expval(qml.PauliZ(1))
+
+        qnode = BaseQNode(circuit, mock_device)
+        qnode._construct([1.0], {})
+
+        assert qnode.ops[0].name == "CNOT"
+        assert qnode.ops[1].name == "RY"
+        assert qnode.ops[2].name == "RZ"
+        assert qnode.ops[3].name == "PauliX"
+
+    def test_operation_removal(self, mock_device):
+        """Tests that operations are correctly removed."""
+
+        def circuit(x):
+            RX = qml.RX(x, wires=[0])
+            qml.CNOT(wires=[0, 1])
+            qml.RY(0.4, wires=[0])
+            qml.RZ(-0.2, wires=[1])
+
+            qml._current_context._remove_op(RX)
+
+            return qml.expval(qml.PauliX(0)), qml.expval(qml.PauliZ(1))
+
+        qnode = BaseQNode(circuit, mock_device)
+        qnode._construct([1.0], {})
+
+        assert qnode.ops[0].name == "CNOT"
+        assert qnode.ops[1].name == "RY"
+        assert qnode.ops[2].name == "RZ"
+        assert qnode.ops[3].name == "PauliX"
+
+    def test_prune_tensors(self, mock_device):
+        """Test that the _prune_tensors auxiliary method prunes correct for
+        a single Identity in the Tensor."""
+        px = qml.PauliX(1)
+        obs = qml.Identity(0) @ px
+
+        def circuit(x):
+            return qml.expval(obs)
+
+        qnode = BaseQNode(circuit, mock_device)
+
+        assert qnode._prune_tensors(obs) == px
+
+    def test_prune_tensors_no_pruning_took_place(self, mock_device):
+        """Test that the _prune_tensors auxiliary method returns
+        the original tensor if no observables were pruned."""
+        px = qml.PauliX(1)
+        obs = px
+
+        def circuit(x):
+            return qml.expval(obs)
+
+        qnode = BaseQNode(circuit, mock_device)
+
+        assert qnode._prune_tensors(obs) == px
+
+    def test_prune_tensors_construct(self, mock_device):
+        """Test that the tensors are pruned in construct."""
+        def circuit(x):
+            return qml.expval(qml.PauliX(0) @ qml.Identity(1))
+
+        qnode = BaseQNode(circuit, mock_device)
+        qnode._construct([1.0], {})
+
+        assert qnode.ops[0].name == "PauliX"
+        assert len(qnode.ops[0].wires) == 1
+        assert qnode.ops[0].wires[0] == 0
 
 class TestQNodeExceptions:
     """Tests that QNode raises proper errors"""
@@ -339,14 +421,16 @@ class TestQNodeExceptions:
             return qml.expval(qml.PauliZ(0))
 
         node = BaseQNode(circuit, operable_mock_device_2_wires, properties={"vis_check": True})
-        with pytest.raises(QuantumFunctionError, match="cannot affect the output"):
+        with pytest.raises(QuantumFunctionError, match="cannot affect the circuit output"):
             node(0.5)
 
     def test_operation_requiring_all_wires(self, operable_mock_device_2_wires):
         """Error: an operation that must be applied to all wires is not
         applied to all wires."""
+
         class DummyOp(qml.operation.Operation):
             """Dummy operation"""
+
             num_wires = qml.operation.Wires.All
             num_params = 0
             par_domain = None
@@ -419,7 +503,7 @@ class TestQNodeExceptions:
         reason="Tests the auxiliary-equals-keyword-only syntax", raises=TypeError, strict=True
     )
     def test_simple_valid_call(self, operable_mock_device_2_wires):
-        """Old QNode gives an error here, "got multiple values for argument 'x'"
+        """BaseQNode gives an error here, "got multiple values for argument 'x'"
         """
 
         def circuit(x=0):
@@ -457,7 +541,7 @@ class TestQNodeExceptions:
 
         # valid calls
         node(x=0.1, n=0.4)
-        assert circuit.in_args[2:] == (0.3, 0.4)  # first two are Variables
+        assert circuit.in_args[2:] == (0.3, 0.4)  # first two are VariableRefs
         node(0.1, n=0.4)
         assert circuit.in_args[2:] == (0.3, 0.4)
 
@@ -499,7 +583,7 @@ class TestQNodeExceptions:
 
         # valid calls
         node(x=0.1, n=0.4)
-        assert circuit.in_args[2:] == (0.3, 0.4)  # first two are Variables
+        assert circuit.in_args[2:] == (0.3, 0.4)  # first two are VariableRefs
         node(0.1, n=0.4)
         assert circuit.in_args[2:] == (0.3, 0.4)
 
@@ -538,7 +622,7 @@ class TestQNodeExceptions:
 
         # valid calls
         node(0.1)
-        assert circuit.in_args[1:] == (0.2, 0.3)  # first is a Variable
+        assert circuit.in_args[1:] == (0.2, 0.3)  # first is a VariableRef
         node(0.1, y=1.2)
         assert circuit.in_args[1:] == (1.2, 0.3)
         node(0.1, z=1.3, y=1.2)
@@ -688,6 +772,7 @@ class TestQNodeArgs:
     def test_keywordargs_with_kwargs(self, qubit_device_1_wire, tol):
         """Tests that nothing happens if unknown keyword arg passed with
         qnodes accepting **kwargs."""
+
         def circuit(w, x=None, **kwargs):
             qml.RX(x, wires=[0])
             return qml.expval(qml.PauliZ(0))
@@ -745,7 +830,56 @@ class TestQNodeCaching:
         assert len(node.circuit.operations) == 2
         node.ops[0] is temp  # it's the same circuit with the same objects
 
+    THETA = np.linspace(0.11, 1, 3)
+    PHI = np.linspace(0.32, 1, 3)
+    VARPHI = np.linspace(0.02, 1, 3)
 
+    @pytest.mark.parametrize("theta,phi,varphi", list(zip(THETA, PHI, VARPHI)))
+    def test_mutable_qnode(self, theta, phi, varphi, tol):
+        """Test that a mutable QNode evaluated multiple times mutates well and produces
+        the desired result.
+        """
+        dev = qml.device('default.qubit', wires=1)
+
+        @qml.qnode(dev)
+        def circuit(weights, n_layers=1):
+            for idx in range(n_layers):
+                qml.RX(weights[idx], wires=[0])
+            return qml.expval(qml.PauliZ(0))
+
+        res = circuit([phi], n_layers=1)
+        exp = np.cos(phi)
+        assert np.allclose(res, exp, atol=tol, rtol=0)
+
+        res = circuit([phi, theta], n_layers=2)
+        exp = np.cos(phi + theta)
+        assert np.allclose(res, exp, atol=tol, rtol=0)
+
+        res = circuit([phi, theta, varphi], n_layers=3)
+        exp = np.cos(phi + theta + varphi)
+        assert np.allclose(res, exp, atol=tol, rtol=0)
+
+    def test_mutable_qnode_for_loop_varying_executions(self, tol):
+        """Test that a mutable QNode containing a for loop correctly mutates
+        when called with different auxiliary arguments and different shaped positional
+        arguments.
+        """
+        dev = qml.device('default.qubit', wires=1)
+
+        @qml.qnode(dev)
+        def node(x, n=1):
+            for k in range(2):
+                for j in range(min(n, k+1)):
+                    qml.RX(x[k][j], wires=0)
+            return qml.expval(qml.PauliZ(wires=0))
+
+        res = node([[0.1], [0.2]], n=1)
+        exp = np.cos(sum([0.1] + [0.2]))
+        assert np.allclose(res, exp, atol=tol, rtol=0)
+
+        res = node([[0.1], [0.2, 0.3]], n=2)
+        exp = np.cos(sum([0.1] + [0.2, 0.3]))
+        assert np.allclose(res, exp, atol=tol, rtol=0)
 
 class TestQNodeEvaluate:
     """Test for observable statistic evaluation"""
@@ -766,7 +900,7 @@ class TestQNodeEvaluate:
 
         node = BaseQNode(circuit, dev)
         res = node.evaluate([x, y], {})
-        expected = np.sin(y)*np.cos(x)
+        expected = np.sin(y) * np.cos(x)
         assert np.allclose(res, expected, atol=tol, rtol=0)
 
     @pytest.mark.parametrize(
@@ -788,11 +922,11 @@ class TestQNodeEvaluate:
         # test standard evaluation
         node = BaseQNode(circuit, dev)
         res = node.evaluate([x, y], {})
-        expected = np.sin(y)*np.cos(x)
+        expected = np.sin(y) * np.cos(x)
         assert np.allclose(res, expected, atol=tol, rtol=0)
 
         # hot-swap the observable
-        res = node.evaluate_obs([qml.PauliZ(0) @ qml.PauliZ(1)], [x, y], {})
+        res = node.evaluate_obs([qml.expval(qml.PauliZ(0) @ qml.PauliZ(1))], [x, y], {})
         expected = np.cos(y)
         assert np.allclose(res, expected, atol=tol, rtol=0)
 
@@ -820,11 +954,7 @@ class TestDecomposition:
         """Test that decompose queue makes no changes
         if there are no operations to be decomposed"""
 
-        queue = [
-            qml.Rot(0, 1, 2, wires=0),
-            qml.CNOT(wires=[0, 1]),
-            qml.RX(6, wires=0)
-        ]
+        queue = [qml.Rot(0, 1, 2, wires=0), qml.CNOT(wires=[0, 1]), qml.RX(6, wires=0)]
 
         res = decompose_queue(queue, operable_mock_device_2_wires)
         assert res == queue
@@ -833,11 +963,7 @@ class TestDecomposition:
         """Test that decompose queue works correctly
         when an operation exists that can be decomposed"""
 
-        queue = [
-            qml.Rot(0, 1, 2, wires=0),
-            qml.U3(3, 4, 5, wires=0),
-            qml.RX(6, wires=0)
-        ]
+        queue = [qml.Rot(0, 1, 2, wires=0), qml.U3(3, 4, 5, wires=0), qml.RX(6, wires=0)]
 
         res = decompose_queue(queue, operable_mock_device_2_wires)
 
@@ -865,6 +991,7 @@ class TestDecomposition:
 
         class DummyOp(qml.operation.Operation):
             """Dummy operation"""
+
             num_params = 0
             num_wires = 1
             par_domain = "R"
@@ -875,11 +1002,176 @@ class TestDecomposition:
                 ops = [qml.Hadamard(wires=wires)]
                 return ops
 
-        queue = [
-            qml.Rot(0, 1, 2, wires=0),
-            DummyOp(wires=0),
-            qml.RX(6, wires=0)
-        ]
+        queue = [qml.Rot(0, 1, 2, wires=0), DummyOp(wires=0), qml.RX(6, wires=0)]
 
         with pytest.raises(qml.DeviceError, match="DummyOp not supported on device"):
             decompose_queue(queue, operable_mock_device_2_wires)
+
+
+class TestQNodeVariableMap:
+    """Test the conversion of arguments to VariableRef instances."""
+
+    def test_regular_arguments(self, mock_device):
+        """Test that regular arguments are properly converted to VariableRef instances."""
+        def circuit(a, b, c, d):
+            qml.RX(a, wires=[0])
+            qml.RY(b, wires=[0])
+            qml.RZ(c, wires=[0])
+            qml.RZ(d, wires=[0])
+
+            return qml.expval(qml.PauliX(0))
+
+        node = BaseQNode(circuit, mock_device)
+        arg_vars, kwarg_vars = node._make_variables([1.0, 2.0, 3.0, 4.0], {})
+
+        expected_arg_vars = [
+            VariableRef(0, "a"),
+            VariableRef(1, "b"),
+            VariableRef(2, "c"),
+            VariableRef(3, "d"),
+        ]
+
+        for var, expected in zip(qml.utils._flatten(arg_vars), expected_arg_vars):
+            assert var == expected
+
+        assert not kwarg_vars
+
+    def test_array_arguments(self, mock_device):
+        """Test that array arguments are properly converted to VariableRef instances."""
+        def circuit(weights):
+            qml.RX(weights[0, 0], wires=[0])
+            qml.RY(weights[0, 1], wires=[0])
+            qml.RZ(weights[1, 0], wires=[0])
+            qml.RZ(weights[1, 1], wires=[0])
+
+            return qml.expval(qml.PauliX(0))
+
+        node = BaseQNode(circuit, mock_device)
+
+        weights = np.array([[1, 2], [3, 4]])
+        arg_vars, kwarg_vars = node._make_variables([weights], {})
+
+        expected_arg_vars = [
+            VariableRef(0, "weights[0,0]"),
+            VariableRef(1, "weights[0,1]"),
+            VariableRef(2, "weights[1,0]"),
+            VariableRef(3, "weights[1,1]"),
+        ]
+
+        for var, expected in zip(qml.utils._flatten(arg_vars), expected_arg_vars):
+            assert var == expected
+
+        assert not kwarg_vars
+
+    def test_regular_keyword_arguments(self, mock_device):
+        """Test that regular keyword arguments are properly converted to VariableRef instances."""
+        def circuit(*, a=1, b=2, c=3, d=4):
+            qml.RX(a, wires=[0])
+            qml.RY(b, wires=[0])
+            qml.RZ(c, wires=[0])
+            qml.RZ(d, wires=[0])
+
+            return qml.expval(qml.PauliX(0))
+
+        node = BaseQNode(circuit, mock_device)
+        arg_vars, kwarg_vars = node._make_variables([], {"b" : 3})
+
+        expected_kwarg_vars = {
+            "a" : [VariableRef(0, "a", is_kwarg=True)],
+            "b" : [VariableRef(0, "b", is_kwarg=True)],
+            "c" : [VariableRef(0, "c", is_kwarg=True)],
+            "d" : [VariableRef(0, "d", is_kwarg=True)],
+        }
+
+        assert not arg_vars
+
+        for expected_key in expected_kwarg_vars:
+            for var, expected in zip(qml.utils._flatten(kwarg_vars[expected_key]), qml.utils._flatten(expected_kwarg_vars[expected_key])):
+                assert var == expected
+
+    def test_array_keyword_arguments(self, mock_device):
+        """Test that array keyword arguments are properly converted to VariableRef instances."""
+        def circuit(*, a=np.array([[1, 0], [0, 1]]), b=np.array([1,2,3])):
+            qml.RX(a[0, 0], wires=[0])
+            qml.RX(a[0, 1], wires=[0])
+            qml.RX(a[1, 0], wires=[0])
+            qml.RX(a[1, 1], wires=[0])
+            qml.RY(b[0], wires=[0])
+            qml.RY(b[1], wires=[0])
+            qml.RY(b[2], wires=[0])
+
+            return qml.expval(qml.PauliX(0))
+
+        node = BaseQNode(circuit, mock_device)
+        arg_vars, kwarg_vars = node._make_variables([], {"b" : np.array([6,7,8,9])})
+
+        expected_kwarg_vars = {
+            "a" : [
+                VariableRef(0, "a[0,0]", is_kwarg=True),
+                VariableRef(1, "a[0,1]", is_kwarg=True),
+                VariableRef(2, "a[1,0]", is_kwarg=True),
+                VariableRef(3, "a[1,1]", is_kwarg=True),
+            ],
+            "b" : [
+                VariableRef(0, "b[0]", is_kwarg=True),
+                VariableRef(1, "b[1]", is_kwarg=True),
+                VariableRef(2, "b[2]", is_kwarg=True),
+                VariableRef(3, "b[3]", is_kwarg=True),
+            ],
+        }
+
+        assert not arg_vars
+
+        for expected_key in expected_kwarg_vars:
+            for var, expected in zip(qml.utils._flatten(kwarg_vars[expected_key]), qml.utils._flatten(expected_kwarg_vars[expected_key])):
+                assert var == expected
+
+    def test_variadic_arguments(self, mock_device):
+        """Test that variadic arguments are properly converted to VariableRef instances."""
+        def circuit(a, *b):
+            qml.RX(a, wires=[0])
+            qml.RX(b[0], wires=[0])
+            qml.RX(b[1][1], wires=[0])
+            qml.RX(b[2], wires=[0])
+
+            return qml.expval(qml.PauliX(0))
+
+        node = BaseQNode(circuit, mock_device)
+        arg_vars, kwarg_vars = node._make_variables([0.1, 0.2, np.array([0, 1, 2, 3]), 0.5], {})
+
+        expected_arg_vars = [
+            VariableRef(0, "a"),
+            VariableRef(1, "b[0]"),
+            VariableRef(2, "b[1][0]"),
+            VariableRef(3, "b[1][1]"),
+            VariableRef(4, "b[1][2]"),
+            VariableRef(5, "b[1][3]"),
+            VariableRef(6, "b[2]"),
+        ]
+
+        assert not kwarg_vars
+
+        for var, expected in zip(qml.utils._flatten(arg_vars), expected_arg_vars):
+            assert var == expected
+
+
+class TestQNodeDraw:
+    """Test functionality related to draw."""
+
+    def test_unknown_charset_error(self, mock_qnode):
+        """Test that an error is raised for an unsupported charset."""
+        with pytest.raises(ValueError, match="Charset does_not_exist is not supported"):
+            mock_qnode.draw(charset="does_not_exist")
+
+    def test_draw_before_construction_error(self):
+        """Test that an error is raised when drawing a QNode that is not yet constructed is attempted."""
+        dev = qml.device("default.qubit", wires=1)
+
+        @qml.qnode(dev)
+        def circuit(a):
+            qml.RX(a, wires=[0])
+
+            return qml.expval(qml.PauliZ(0))
+
+        with pytest.raises(RuntimeError, match="The QNode can only be drawn after its CircuitGraph has been constructed"):
+            circuit.draw()

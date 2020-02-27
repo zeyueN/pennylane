@@ -41,11 +41,15 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinxcontrib.bibtex',
     'edit_on_github',
+    'sphinx.ext.graphviz',
     # 'sphinx_gallery.gen_gallery',
     "sphinx.ext.intersphinx",
     "sphinx_automodapi.automodapi",
     'sphinx_copybutton',
+    "m2r"
 ]
+
+source_suffix = ['.rst', '.md']
 
 autosummary_generate = True
 autosummary_imported_members = False
@@ -96,7 +100,7 @@ project = 'PennyLane'
 copyright = """
     Ville Bergholm, Josh Izaac, Maria Schuld, Christian Gogolin, Carsten Blank, Keri McKiernan, and Nathan Killoran. <br>
 PennyLane: Automatic differentiation of hybrid quantum-classical computations. arXiv:1811.04968, 2018.<br>
-&copy; Copyright 2018-2019, Xanadu Quantum Technologies Inc."""
+&copy; Copyright 2018-2020, Xanadu Quantum Technologies Inc."""
 author = 'Xanadu Inc.'
 
 add_module_names = False
@@ -106,7 +110,32 @@ add_module_names = False
 # built documents.
 
 import pennylane
-import pennylane_qchem
+
+try:
+    import pennylane_qchem
+except ImportError:
+    from unittest.mock import MagicMock
+
+    class Mock(MagicMock):
+        __name__ = 'foo'
+        __repr__ = lambda self: __name__
+
+        @classmethod
+        def __getattr__(cls, name):
+            return MagicMock()
+
+    MOCK_MODULES = [
+        'pennylane_qchem',
+        'pennylane_qchem.qchem',
+        ]
+
+    mock_fn = Mock(__name__='foo')
+    mock_fns = {"__all__": list(), "__dir__": list(), "__dict__": dict()}
+
+    mock = Mock(**mock_fns)
+    for mod_name in MOCK_MODULES:
+        sys.modules[mod_name] = mock
+
 # The full version, including alpha/beta/rc tags.
 release = pennylane.__version__
 
@@ -377,8 +406,9 @@ autodoc_member_order = 'bysource'
 # inheritance_diagram graphviz attributes
 inheritance_node_attrs = dict(color='lightskyblue1', style='filled')
 
-from directives import UsageDetails
-
+from directives import UsageDetails, CustomGalleryItemDirective
 
 def setup(app):
+    app.add_directive('customgalleryitem', CustomGalleryItemDirective)
     app.add_directive("usagedetails", UsageDetails)
+    app.add_stylesheet('xanadu_gallery.css')

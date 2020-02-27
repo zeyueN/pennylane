@@ -1,4 +1,4 @@
-# Copyright 2019 Xanadu Quantum Technologies Inc.
+# Copyright 2018-2020 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -122,7 +122,6 @@ class QubitQNode(JacobianQNode):
             # which we can modify without affecting other Operators depending on the original.
             orig = op.params[p_idx]
             assert orig.idx == idx
-            assert orig.name is None
 
             # reference to a new, temporary parameter with index n, otherwise identical with orig
             temp_var = copy.copy(orig)
@@ -231,7 +230,7 @@ class QubitQNode(JacobianQNode):
         # pylint: disable=too-many-statements, too-many-branches
 
         self._metric_tensor_subcircuits = {}
-        for queue, curr_ops, param_idx, _ in self.circuit.iterate_layers():
+        for queue, curr_ops, param_idx, _ in self.circuit.iterate_parametrized_layers():
             obs = []
             scale = []
 
@@ -336,6 +335,7 @@ class QubitQNode(JacobianQNode):
         Returns:
             array[float]: metric tensor
         """
+        # pylint:disable=too-many-branches
         kwargs = kwargs or {}
         kwargs = self._default_args(kwargs)
 
@@ -365,8 +365,21 @@ class QubitQNode(JacobianQNode):
                 # block diagonal approximation
 
                 unitary_op = qml.QubitUnitary(V, wires=list(range(self.num_wires)), do_queue=False)
-                self.device.execute(circuit["queue"] + [unitary_op], [qml.expval(qml.PauliZ(wire)) for wire in list(range(self.device.num_wires))])
-                probs = list(self.device.probability().values())
+
+                if isinstance(self.device, qml.QubitDevice):
+                    ops = circuit["queue"] + [unitary_op] + [qml.expval(qml.PauliZ(0))]
+                    circuit_graph = qml.CircuitGraph(ops, self.variable_deps)
+                    self.device.execute(circuit_graph)
+                else:
+                    self.device.execute(
+                        circuit["queue"] + [unitary_op],
+                        [
+                            qml.expval(qml.PauliZ(wire))
+                            for wire in list(range(self.device.num_wires))
+                        ],
+                    )
+
+                probs = list(self.device.probability())
 
                 first_order_ev = np.zeros([len(params)])
                 second_order_ev = np.zeros([len(params), len(params)])
@@ -401,9 +414,15 @@ class QubitQNode(JacobianQNode):
 
             else:
                 # diagonal approximation
-                circuit["result"] = s ** 2 * self.device.execute(
-                    circuit["queue"], circuit["observable"]
-                )
+                if isinstance(self.device, qml.QubitDevice):
+                    circuit_graph = qml.CircuitGraph(
+                        circuit["queue"] + circuit["observable"], self.variable_deps
+                    )
+                    variances = self.device.execute(circuit_graph)
+                else:
+                    variances = self.device.execute(circuit["queue"], circuit["observable"])
+
+                circuit["result"] = s ** 2 * variances
                 tensor[np.array(params), np.array(params)] = circuit["result"]
 
         return tensor

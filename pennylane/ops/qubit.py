@@ -1,4 +1,4 @@
-# Copyright 2018-2019 Xanadu Quantum Technologies Inc.
+# Copyright 2018-2020 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,15 +16,11 @@ This module contains the available built-in discrete-variable
 quantum operations supported by PennyLane, as well as their conventions.
 """
 # pylint:disable=abstract-method,arguments-differ,protected-access
-import itertools
 import numpy as np
 from scipy.linalg import block_diag
 
 from pennylane.operation import Any, Observable, Operation
-from pennylane.templates.state_preparations import (
-    BasisStatePreparation,
-    MottonenStatePreparation,
-)
+from pennylane.templates.state_preparations import BasisStatePreparation, MottonenStatePreparation
 from pennylane.utils import OperationRecorder, pauli_eigs
 
 
@@ -62,10 +58,10 @@ class Hadamard(Observable, Operation):
         where :math:`U = R_y(-\pi/4)`.
 
         Returns:
-            list(qml.Operation): A list of gates that diagonalize Hadamard in the
-            computational basis.
+            list(~.Operation): A list of gates that diagonalize Hadamard in
+            the computational basis.
         """
-        return [RY(-np.pi/4, wires=self.wires)]
+        return [RY(-np.pi / 4, wires=self.wires)]
 
 
 class PauliX(Observable, Operation):
@@ -140,8 +136,8 @@ class PauliY(Observable, Operation):
         where :math:`U=HSZ`.
 
         Returns:
-            list(qml.Operation): A list of gates that diagonalize PauliY in the
-            computational basis.
+            list(~.Operation): A list of gates that diagonalize PauliY in the
+                computational basis.
         """
         return [PauliZ(wires=self.wires), S(wires=self.wires), Hadamard(wires=self.wires)]
 
@@ -222,7 +218,7 @@ class T(Operation):
 
     @staticmethod
     def _matrix(*params):
-        return np.array([[1, 0], [0, np.exp(1j*np.pi/4)]])
+        return np.array([[1, 0], [0, np.exp(1j * np.pi / 4)]])
 
 
 class CNOT(Operation):
@@ -344,14 +340,18 @@ class CSWAP(Operation):
 
     @staticmethod
     def _matrix(*params):
-        return np.array([[1, 0, 0, 0, 0, 0, 0, 0],
-                        [0, 1, 0, 0, 0, 0, 0, 0],
-                        [0, 0, 1, 0, 0, 0, 0, 0],
-                        [0, 0, 0, 1, 0, 0, 0, 0],
-                        [0, 0, 0, 0, 1, 0, 0, 0],
-                        [0, 0, 0, 0, 0, 0, 1, 0],
-                        [0, 0, 0, 0, 0, 1, 0, 0],
-                        [0, 0, 0, 0, 0, 0, 0, 1]])
+        return np.array(
+            [
+                [1, 0, 0, 0, 0, 0, 0, 0],
+                [0, 1, 0, 0, 0, 0, 0, 0],
+                [0, 0, 1, 0, 0, 0, 0, 0],
+                [0, 0, 0, 1, 0, 0, 0, 0],
+                [0, 0, 0, 0, 1, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 1, 0],
+                [0, 0, 0, 0, 0, 1, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 1],
+            ]
+        )
 
 
 class Toffoli(Operation):
@@ -420,7 +420,7 @@ class RX(Operation):
     @staticmethod
     def _matrix(*params):
         theta = params[0]
-        return np.cos(theta/2) * np.eye(2) + 1j * np.sin(-theta/2) * PauliX._matrix()
+        return np.cos(theta / 2) * np.eye(2) + 1j * np.sin(-theta / 2) * PauliX._matrix()
 
 
 class RY(Operation):
@@ -452,7 +452,7 @@ class RY(Operation):
     @staticmethod
     def _matrix(*params):
         theta = params[0]
-        return np.cos(theta/2) * np.eye(2) + 1j * np.sin(-theta/2) * PauliY._matrix()
+        return np.cos(theta / 2) * np.eye(2) + 1j * np.sin(-theta / 2) * PauliY._matrix()
 
 
 class RZ(Operation):
@@ -484,7 +484,7 @@ class RZ(Operation):
     @staticmethod
     def _matrix(*params):
         theta = params[0]
-        return np.cos(theta/2) * np.eye(2) + 1j * np.sin(-theta/2) * PauliZ._matrix()
+        return np.cos(theta / 2) * np.eye(2) + 1j * np.sin(-theta / 2) * PauliZ._matrix()
 
 
 class PhaseShift(Operation):
@@ -516,7 +516,7 @@ class PhaseShift(Operation):
     @staticmethod
     def _matrix(*params):
         phi = params[0]
-        return np.array([[1, 0], [0, np.exp(1j*phi)]])
+        return np.array([[1, 0], [0, np.exp(1j * phi)]])
 
 
 class Rot(Operation):
@@ -561,11 +561,7 @@ class Rot(Operation):
 
     @staticmethod
     def decomposition(phi, theta, omega, wires):
-        decomp_ops = [
-            RZ(phi, wires=wires),
-            RY(theta, wires=wires),
-            RZ(omega, wires=wires),
-        ]
+        decomp_ops = [RZ(phi, wires=wires), RY(theta, wires=wires), RZ(omega, wires=wires)]
         return decomp_ops
 
 
@@ -615,10 +611,7 @@ class CRX(Operation):
     num_wires = 2
     par_domain = "R"
     grad_method = "A"
-    generator = [
-        np.array([[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]]),
-        -1 / 2,
-    ]
+    generator = [np.array([[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]]), -1 / 2]
 
     @staticmethod
     def _matrix(*params):
@@ -681,10 +674,7 @@ class CRY(Operation):
     num_wires = 2
     par_domain = "R"
     grad_method = "A"
-    generator = [
-        np.array([[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, -1j], [0, 0, 1j, 0]]),
-        -1 / 2,
-    ]
+    generator = [np.array([[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, -1j], [0, 0, 1j, 0]]), -1 / 2]
 
     @staticmethod
     def _matrix(*params):
@@ -745,10 +735,7 @@ class CRZ(Operation):
     num_wires = 2
     par_domain = "R"
     grad_method = "A"
-    generator = [
-        np.array([[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, -1]]),
-        -1 / 2,
-    ]
+    generator = [np.array([[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, -1]]), -1 / 2]
 
     @staticmethod
     def _matrix(*params):
@@ -884,7 +871,7 @@ class U2(Operation):
     @staticmethod
     def _matrix(*params):
         phi, lam = params
-        return PhaseShift._matrix(phi+lam) @ Rot._matrix(lam, np.pi/2, -lam)
+        return PhaseShift._matrix(phi + lam) @ Rot._matrix(lam, np.pi / 2, -lam)
 
     @staticmethod
     def decomposition(phi, lam, wires):
@@ -936,11 +923,10 @@ class U3(Operation):
     par_domain = "R"
     grad_method = "A"
 
-
     @staticmethod
     def _matrix(*params):
         theta, phi, lam = params
-        return PhaseShift._matrix(phi+lam) @ Rot._matrix(lam, theta, -lam)
+        return PhaseShift._matrix(phi + lam) @ Rot._matrix(lam, theta, -lam)
 
     @staticmethod
     def decomposition(theta, phi, lam, wires):
@@ -1111,8 +1097,8 @@ class Hermitian(Observable):
         return A
 
     @property
-    def eigendecomposition_of_permuted(self):
-        """Return the eigendecomposition of the (permuted) matrix specified by the Hermitian observable.
+    def eigendecomposition(self):
+        """Return the eigendecomposition of the matrix specified by the Hermitian observable.
 
         This method uses pre-stored eigenvalues for standard observables where
         possible and stores the corresponding eigenvectors from the eigendecomposition.
@@ -1122,10 +1108,7 @@ class Hermitian(Observable):
         Returns:
             dict[str, array]: dictionary containing the eigenvalues and the eigenvectors of the Hermitian observable
         """
-        basis_states = np.array(list(itertools.product([0, 1], repeat=len(self.wires))))
-        perm = np.ravel_multi_index(basis_states[:, np.argsort(np.argsort(self.wires))].T, [2] * len(self.wires))
-
-        Hmat = self.matrix[:, perm][perm]
+        Hmat = self.matrix
         Hkey = tuple(Hmat.flatten().tolist())
         if Hkey not in Hermitian._eigs:
             w, U = np.linalg.eigh(Hmat)
@@ -1144,7 +1127,7 @@ class Hermitian(Observable):
         Returns:
             array: array containing the eigenvalues of the Hermitian observable
         """
-        return self.eigendecomposition_of_permuted["eigval"]
+        return self.eigendecomposition["eigval"]
 
     def diagonalizing_gates(self):
         """Return the gate set that diagonalizes a circuit according to the
@@ -1156,9 +1139,7 @@ class Hermitian(Observable):
         Returns:
             list: list containing the gates diagonalizing the Hermitian observable
         """
-        return [
-            QubitUnitary(self.eigendecomposition_of_permuted["eigvec"].conj().T, wires=list(sorted(self.wires))),
-        ]
+        return [QubitUnitary(self.eigendecomposition["eigvec"].conj().T, wires=list(self.wires))]
 
 
 ops = {

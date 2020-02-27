@@ -1,4 +1,4 @@
-# Copyright 2018-2019 Xanadu Quantum Technologies Inc.
+# Copyright 2018-2020 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,49 +19,283 @@ import warnings
 from itertools import product
 
 import numpy as np
+from numpy.linalg import eigh
 
 try:
     import tensornetwork as tn
 except ImportError as e:
-    raise ImportError("expt.tensornet device requires TensorNetwork>=0.2")
+    raise ImportError("default.tensor device requires TensorNetwork>=0.2")
 
 from pennylane._device import Device
-from pennylane.plugins.default_qubit import (
-    CNOT,
-    CSWAP,
-    CZ,
-    SWAP,
-    CRot3,
-    CRotx,
-    CRoty,
-    CRotz,
-    H,
-    Rot3,
-    Rotx,
-    Roty,
-    Rotz,
-    Rphi,
-    S,
-    T,
-    X,
-    Y,
-    Z,
-    hermitian,
-    identity,
-    Toffoli,
-    spectral_decomposition,
-    unitary,
-)
 
 # tolerance for numerical errors
 tolerance = 1e-10
+
+
+# ========================================================
+#  utilities
+# ========================================================
+
+
+def spectral_decomposition(A):
+    r"""Spectral decomposition of a Hermitian matrix.
+
+    Args:
+        A (array): Hermitian matrix
+
+    Returns:
+        (vector[float], list[array[complex]]): (a, P): eigenvalues and hermitian projectors
+            such that :math:`A = \sum_k a_k P_k`.
+    """
+    d, v = eigh(A)
+    P = []
+    for k in range(d.shape[0]):
+        temp = v[:, k]
+        P.append(np.outer(temp, temp.conj()))
+    return d, P
+
+
+# ========================================================
+#  fixed gates
+# ========================================================
+
+I = np.eye(2)
+# Pauli matrices
+X = np.array([[0, 1], [1, 0]])  #: Pauli-X matrix
+Y = np.array([[0, -1j], [1j, 0]])  #: Pauli-Y matrix
+Z = np.array([[1, 0], [0, -1]])  #: Pauli-Z matrix
+
+H = np.array([[1, 1], [1, -1]]) / np.sqrt(2)  #: Hadamard gate
+# Two qubit gates
+CNOT = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]])  #: CNOT gate
+SWAP = np.array([[1, 0, 0, 0], [0, 0, 1, 0], [0, 1, 0, 0], [0, 0, 0, 1]])  #: SWAP gate
+CZ = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, -1]])  #: CZ gate
+S = np.array([[1, 0], [0, 1j]])  #: Phase Gate
+T = np.array([[1, 0], [0, np.exp(1j * np.pi / 4)]])  #: T Gate
+# Three qubit gates
+CSWAP = np.array(
+    [
+        [1, 0, 0, 0, 0, 0, 0, 0],
+        [0, 1, 0, 0, 0, 0, 0, 0],
+        [0, 0, 1, 0, 0, 0, 0, 0],
+        [0, 0, 0, 1, 0, 0, 0, 0],
+        [0, 0, 0, 0, 1, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 1, 0],
+        [0, 0, 0, 0, 0, 1, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 1],
+    ]
+)  #: CSWAP gate
+
+Toffoli = np.diag([1 for i in range(8)])
+Toffoli[6:8, 6:8] = np.array([[0, 1], [1, 0]])
+
+# ========================================================
+#  parametrized gates
+# ========================================================
+
+
+def Rphi(phi):
+    r"""One-qubit phase shift.
+
+    Args:
+        phi (float): phase shift angle
+    Returns:
+        array: unitary 2x2 phase shift matrix
+    """
+    return np.array([[1, 0], [0, np.exp(1j * phi)]])
+
+
+def Rotx(theta):
+    r"""One-qubit rotation about the x axis.
+
+    Args:
+        theta (float): rotation angle
+    Returns:
+        array: unitary 2x2 rotation matrix :math:`e^{-i \sigma_x \theta/2}`
+    """
+    return np.cos(theta / 2) * I + 1j * np.sin(-theta / 2) * X
+
+
+def Roty(theta):
+    r"""One-qubit rotation about the y axis.
+
+    Args:
+        theta (float): rotation angle
+    Returns:
+        array: unitary 2x2 rotation matrix :math:`e^{-i \sigma_y \theta/2}`
+    """
+    return np.cos(theta / 2) * I + 1j * np.sin(-theta / 2) * Y
+
+
+def Rotz(theta):
+    r"""One-qubit rotation about the z axis.
+
+    Args:
+        theta (float): rotation angle
+    Returns:
+        array: unitary 2x2 rotation matrix :math:`e^{-i \sigma_z \theta/2}`
+    """
+    return np.cos(theta / 2) * I + 1j * np.sin(-theta / 2) * Z
+
+
+def Rot3(a, b, c):
+    r"""Arbitrary one-qubit rotation using three Euler angles.
+
+    Args:
+        a,b,c (float): rotation angles
+    Returns:
+        array: unitary 2x2 rotation matrix ``rz(c) @ ry(b) @ rz(a)``
+    """
+    return Rotz(c) @ (Roty(b) @ Rotz(a))
+
+
+def CRotx(theta):
+    r"""Two-qubit controlled rotation about the x axis.
+
+    Args:
+        theta (float): rotation angle
+    Returns:
+        array: unitary 4x4 rotation matrix :math:`|0\rangle\langle 0|\otimes \mathbb{I}+|1\rangle\langle 1|\otimes R_x(\theta)`
+    """
+    return np.array(
+        [
+            [1, 0, 0, 0],
+            [0, 1, 0, 0],
+            [0, 0, np.cos(theta / 2), -1j * np.sin(theta / 2)],
+            [0, 0, -1j * np.sin(theta / 2), np.cos(theta / 2)],
+        ]
+    )
+
+
+def CRoty(theta):
+    r"""Two-qubit controlled rotation about the y axis.
+
+    Args:
+        theta (float): rotation angle
+    Returns:
+        array: unitary 4x4 rotation matrix :math:`|0\rangle\langle 0|\otimes \mathbb{I}+|1\rangle\langle 1|\otimes R_y(\theta)`
+    """
+    return np.array(
+        [
+            [1, 0, 0, 0],
+            [0, 1, 0, 0],
+            [0, 0, np.cos(theta / 2), -np.sin(theta / 2)],
+            [0, 0, np.sin(theta / 2), np.cos(theta / 2)],
+        ]
+    )
+
+
+def CRotz(theta):
+    r"""Two-qubit controlled rotation about the z axis.
+
+    Args:
+        theta (float): rotation angle
+    Returns:
+        array: unitary 4x4 rotation matrix :math:`|0\rangle\langle 0|\otimes \mathbb{I}+|1\rangle\langle 1|\otimes R_z(\theta)`
+    """
+    return np.array(
+        [
+            [1, 0, 0, 0],
+            [0, 1, 0, 0],
+            [0, 0, np.exp(-1j * theta / 2), 0],
+            [0, 0, 0, np.exp(1j * theta / 2)],
+        ]
+    )
+
+
+def CRot3(a, b, c):
+    r"""Arbitrary two-qubit controlled rotation using three Euler angles.
+
+    Args:
+        a,b,c (float): rotation angles
+    Returns:
+        array: unitary 4x4 rotation matrix :math:`|0\rangle\langle 0|\otimes \mathbb{I}+|1\rangle\langle 1|\otimes R(a,b,c)`
+    """
+    return np.array(
+        [
+            [1, 0, 0, 0],
+            [0, 1, 0, 0],
+            [
+                0,
+                0,
+                np.exp(-1j * (a + c) / 2) * np.cos(b / 2),
+                -np.exp(1j * (a - c) / 2) * np.sin(b / 2),
+            ],
+            [
+                0,
+                0,
+                np.exp(-1j * (a - c) / 2) * np.sin(b / 2),
+                np.exp(1j * (a + c) / 2) * np.cos(b / 2),
+            ],
+        ]
+    )
+
+
+# ========================================================
+#  Arbitrary states and operators
+# ========================================================
+
+
+def unitary(*args):
+    r"""Input validation for an arbitary unitary operation.
+
+    Args:
+        args (array): square unitary matrix
+
+    Raises:
+        ValueError: if the matrix is not unitary or square
+
+    Returns:
+        array: square unitary matrix
+    """
+    U = np.asarray(args[0])
+
+    if U.shape[0] != U.shape[1]:
+        raise ValueError("Operator must be a square matrix.")
+
+    if not np.allclose(U @ U.conj().T, np.identity(U.shape[0])):
+        raise ValueError("Operator must be unitary.")
+
+    return U
+
+
+def hermitian(*args):
+    r"""Input validation for an arbitary Hermitian expectation.
+
+    Args:
+        args (array): square hermitian matrix
+
+    Raises:
+        ValueError: if the matrix is not Hermitian or square
+
+    Returns:
+        array: square hermitian matrix
+    """
+    A = np.asarray(args[0])
+    if A.shape[0] != A.shape[1]:
+        raise ValueError("Expectation must be a square matrix.")
+
+    if not np.allclose(A, A.conj().T):
+        raise ValueError("Expectation must be Hermitian.")
+
+    return A
+
+
+def identity(*_):
+    """Identity matrix observable.
+
+    Returns:
+        array: 2x2 identity matrix
+    """
+    return np.identity(2)
+
 
 # ========================================================
 #  device
 # ========================================================
 
 
-class TensorNetwork(Device):
+class DefaultTensor(Device):
     """Experimental Tensor Network simulator device for PennyLane.
 
     Args:
@@ -69,9 +303,9 @@ class TensorNetwork(Device):
     """
 
     name = "PennyLane TensorNetwork simulator plugin"
-    short_name = "expt.tensornet"
-    pennylane_requires = "0.8"
-    version = "0.8.0"
+    short_name = "default.tensor"
+    pennylane_requires = "0.9"
+    version = "0.9.0"
     author = "Xanadu Inc."
     _capabilities = {"model": "qubit", "tensor_observables": True}
 
@@ -200,7 +434,7 @@ class TensorNetwork(Device):
                 raise ValueError("State vector must be of length 2**wires.")
             if wires is not None and wires != [] and list(wires) != list(range(self.num_wires)):
                 raise ValueError(
-                    "The expt.tensornet plugin can apply QubitStateVector only to all of the {} wires.".format(
+                    "The default.tensor plugin can apply QubitStateVector only to all of the {} wires.".format(
                         self.num_wires
                     )
                 )
@@ -215,7 +449,7 @@ class TensorNetwork(Device):
                 )
             if wires is not None and wires != [] and list(wires) != list(range(self.num_wires)):
                 raise ValueError(
-                    "The expt.tensornet plugin can apply BasisState only to all of the {} wires.".format(
+                    "The default.tensor plugin can apply BasisState only to all of the {} wires.".format(
                         self.num_wires
                     )
                 )

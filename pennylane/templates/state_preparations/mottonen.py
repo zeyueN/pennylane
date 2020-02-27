@@ -1,4 +1,4 @@
-# Copyright 2018-2019 Xanadu Quantum Technologies Inc.
+# Copyright 2018-2020 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 r"""
-State preperations are templates that prepare a given quantum state,
-by decomposing it into elementary operations.
+Contains the ``MottonenStatePreparation`` template.
 """
 import math
 import numpy as np
@@ -21,10 +20,9 @@ from scipy import sparse
 
 import pennylane as qml
 
-from pennylane.templates.utils import (_check_wires,
-                                       _check_no_variable,
-                                       _check_shape)
-from pennylane.variable import Variable
+from pennylane.templates.decorator import template
+from pennylane.templates.utils import _check_wires, _check_shape, _get_shape
+from pennylane.variable import VariableRef
 
 
 # pylint: disable=len-as-condition,arguments-out-of-order
@@ -52,48 +50,6 @@ def gray_code(rank):
     gray_code_recurse(g, rank - 1)
 
     return g
-
-
-def BasisStatePreparation(basis_state, wires):
-    r"""
-    Prepares a basis state on the given wires using a sequence of Pauli X gates.
-
-    .. warning::
-
-        ``basis_state`` influences the circuit architecture and is therefore incompatible with
-        gradient computations. Ensure that ``basis_state`` is not passed to the qnode by positional
-        arguments.
-
-    Args:
-        basis_state (array): Input array of shape ``(N,)``, where N is the number of wires
-            the state preparation acts on. ``N`` must be smaller or equal to the total
-            number of wires of the device.
-        wires (Sequence[int]): sequence of qubit indices that the template acts on
-
-    Raises:
-        ValueError: if inputs do not have the correct format
-    """
-
-    ######################
-    # Input checks
-    wires, n_wires = _check_wires(wires)
-
-    msg = "The size of the basis state must match the number of qubits {}; got {}.".format(n_wires, len(basis_state))
-    _check_shape(basis_state, (n_wires,), msg=msg)
-
-    # basis_state cannot be trainable
-    msg = "Basis state influences circuit architecture and can therefore not be passed as a " \
-           "positional argument to the quantum node."
-    _check_no_variable([basis_state], ['basisstate'], msg=msg)
-
-    # basis_state is guaranteed to be a list
-    if any([b not in [0, 1] for b in basis_state]):
-        raise ValueError("Basis state must only consist of 0s and 1s, got {}".format(basis_state))
-    ######################
-
-    for wire, state in zip(wires, basis_state):
-        if state == 1:
-            qml.PauliX(wire)
 
 
 def _matrix_M_entry(row, col):
@@ -261,6 +217,7 @@ def _get_alpha_y(a, n, k):
     return alpha
 
 
+@template
 def MottonenStatePreparation(state_vector, wires):
     r"""
     Prepares an arbitrary state on the given wires using a decomposition into gates developed
@@ -288,20 +245,27 @@ def MottonenStatePreparation(state_vector, wires):
 
     ###############
     # Input checks
-    wires, n_wires = _check_wires(wires)
 
-    msg = "The state vector must be of size {}; got {}.".format(2**n_wires, len(state_vector))
-    _check_shape(state_vector, (2**n_wires,), msg=msg)
+    wires = _check_wires(wires)
+
+    n_wires = len(wires)
+    expected_shape = (2 ** n_wires,)
+    _check_shape(
+        state_vector,
+        expected_shape,
+        msg="'state_vector' must be of shape {}; got {}."
+        "".format(expected_shape, _get_shape(state_vector)),
+    )
 
     # check if state_vector is normalized
-    if isinstance(state_vector[0], Variable):
+    if isinstance(state_vector[0], VariableRef):
         state_vector_values = [s.val for s in state_vector]
-        norm = np.sum(np.abs(state_vector_values)**2)
+        norm = np.sum(np.abs(state_vector_values) ** 2)
     else:
-        norm = np.sum(np.abs(state_vector)**2)
-
+        norm = np.sum(np.abs(state_vector) ** 2)
     if not np.isclose(norm, 1.0, atol=1e-3):
-        raise ValueError("State vector probabilities have to sum up to 1.0, got {}".format(norm))
+        raise ValueError("'state_vector' has to be of length 1.0, got {}".format(norm))
+
     #######################
 
     # Change ordering of indices, original code was for IBM machines
@@ -314,7 +278,7 @@ def MottonenStatePreparation(state_vector, wires):
     omega = sparse.dok_matrix(state_vector.shape)
 
     for (i, j), v in state_vector.items():
-        if isinstance(v, Variable):
+        if isinstance(v, VariableRef):
             a[i, j] = np.absolute(v.val)
             omega[i, j] = np.angle(v.val)
         else:
@@ -337,8 +301,3 @@ def MottonenStatePreparation(state_vector, wires):
         target = wires[k - 1]
         if len(alpha_z_k) > 0:
             _uniform_rotation_z_dagger(alpha_z_k, control, target)
-
-
-state_preparations = {"BasisStatePreparation", "MottonenStatePreparation"}
-
-__all__ = list(state_preparations)

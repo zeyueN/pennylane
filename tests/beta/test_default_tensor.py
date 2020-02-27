@@ -1,4 +1,4 @@
-# Copyright 2018 Xanadu Quantum Technologies Inc.
+# Copyright 2018-2020 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,8 +19,39 @@ import cmath
 import math
 
 import pytest
+
+# TODO: remove the following skip when Tensornet has been ported to
+# Qubit device, and the gate imports above are removed.
+tensorflow = pytest.importorskip("tensorflow", minversion="2.0")
+
 import pennylane as qml
 from pennylane import numpy as np, QuantumFunctionError
+from pennylane.beta.plugins.default_tensor import (
+    CNOT,
+    CSWAP,
+    CZ,
+    SWAP,
+    CRot3,
+    CRotx,
+    CRoty,
+    CRotz,
+    H,
+    Rot3,
+    Rotx,
+    Roty,
+    Rotz,
+    Rphi,
+    S,
+    T,
+    X,
+    Y,
+    Z,
+    hermitian,
+    identity,
+    Toffoli,
+    spectral_decomposition,
+    unitary,
+)
 
 tensornetwork = pytest.importorskip("tensornetwork", minversion="0.1")
 
@@ -95,18 +126,223 @@ def prep_par(par, op):
     return par
 
 
-class TestTensornetIntegration:
-    """Integration tests for expt.tensornet. This test ensures it integrates
+class TestAuxillaryFunctions:
+    """Test auxillary functions."""
+
+    def test_spectral_decomposition(self, tol):
+        """Test that the correct spectral decomposition is returned."""
+
+        a, P = spectral_decomposition(H)
+
+        # verify that H = \sum_k a_k P_k
+        assert np.allclose(H, np.einsum("i,ijk->jk", a, P), atol=tol, rtol=0)
+
+    def test_phase_shift(self, tol):
+        """Test phase shift is correct"""
+
+        # test identity for theta=0
+        assert np.allclose(Rphi(0), np.identity(2), atol=tol, rtol=0)
+
+        # test arbitrary phase shift
+        phi = 0.5432
+        expected = np.array([[1, 0], [0, np.exp(1j * phi)]])
+        assert np.allclose(Rphi(phi), expected, atol=tol, rtol=0)
+
+    def test_x_rotation(self, tol):
+        """Test x rotation is correct"""
+
+        # test identity for theta=0
+        assert np.allclose(Rotx(0), np.identity(2), atol=tol, rtol=0)
+
+        # test identity for theta=pi/2
+        expected = np.array([[1, -1j], [-1j, 1]]) / np.sqrt(2)
+        assert np.allclose(Rotx(np.pi / 2), expected, atol=tol, rtol=0)
+
+        # test identity for theta=pi
+        expected = -1j * np.array([[0, 1], [1, 0]])
+        assert np.allclose(Rotx(np.pi), expected, atol=tol, rtol=0)
+
+    def test_y_rotation(self, tol):
+        """Test y rotation is correct"""
+
+        # test identity for theta=0
+        assert np.allclose(Roty(0), np.identity(2), atol=tol, rtol=0)
+
+        # test identity for theta=pi/2
+        expected = np.array([[1, -1], [1, 1]]) / np.sqrt(2)
+        assert np.allclose(Roty(np.pi / 2), expected, atol=tol, rtol=0)
+
+        # test identity for theta=pi
+        expected = np.array([[0, -1], [1, 0]])
+        assert np.allclose(Roty(np.pi), expected, atol=tol, rtol=0)
+
+    def test_z_rotation(self, tol):
+        """Test z rotation is correct"""
+
+        # test identity for theta=0
+        assert np.allclose(Rotz(0), np.identity(2), atol=tol, rtol=0)
+
+        # test identity for theta=pi/2
+        expected = np.diag(np.exp([-1j * np.pi / 4, 1j * np.pi / 4]))
+        assert np.allclose(Rotz(np.pi / 2), expected, atol=tol, rtol=0)
+
+        # test identity for theta=pi
+        assert np.allclose(Rotz(np.pi), -1j * Z, atol=tol, rtol=0)
+
+    def test_arbitrary_rotation(self, tol):
+        """Test arbitrary single qubit rotation is correct"""
+
+        # test identity for phi,theta,omega=0
+        assert np.allclose(Rot3(0, 0, 0), np.identity(2), atol=tol, rtol=0)
+
+        # expected result
+        def arbitrary_rotation(x, y, z):
+            """arbitrary single qubit rotation"""
+            c = np.cos(y / 2)
+            s = np.sin(y / 2)
+            return np.array(
+                [
+                    [np.exp(-0.5j * (x + z)) * c, -np.exp(0.5j * (x - z)) * s],
+                    [np.exp(-0.5j * (x - z)) * s, np.exp(0.5j * (x + z)) * c],
+                ]
+            )
+
+        a, b, c = 0.432, -0.152, 0.9234
+        assert np.allclose(Rot3(a, b, c), arbitrary_rotation(a, b, c), atol=tol, rtol=0)
+
+    def test_C_x_rotation(self, tol):
+        """Test controlled x rotation is correct"""
+
+        # test identity for theta=0
+        assert np.allclose(CRotx(0), np.identity(4), atol=tol, rtol=0)
+
+        # test identity for theta=pi/2
+        expected = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1/np.sqrt(2), -1j/np.sqrt(2)], [0, 0, -1j/np.sqrt(2), 1/np.sqrt(2)]])
+        assert np.allclose(CRotx(np.pi / 2), expected, atol=tol, rtol=0)
+
+        # test identity for theta=pi
+        expected = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, -1j], [0, 0, -1j, 0]])
+        assert np.allclose(CRotx(np.pi), expected, atol=tol, rtol=0)
+
+    def test_C_y_rotation(self, tol):
+        """Test controlled y rotation is correct"""
+
+        # test identity for theta=0
+        assert np.allclose(CRoty(0), np.identity(4), atol=tol, rtol=0)
+
+        # test identity for theta=pi/2
+        expected = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1/np.sqrt(2), -1/np.sqrt(2)], [0, 0, 1/np.sqrt(2), 1/np.sqrt(2)]])
+        assert np.allclose(CRoty(np.pi / 2), expected, atol=tol, rtol=0)
+
+        # test identity for theta=pi
+        expected = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, -1], [0, 0, 1, 0]])
+        assert np.allclose(CRoty(np.pi), expected, atol=tol, rtol=0)
+
+    def test_C_z_rotation(self, tol):
+        """Test controlled z rotation is correct"""
+
+        # test identity for theta=0
+        assert np.allclose(CRotz(0), np.identity(4), atol=tol, rtol=0)
+
+        # test identity for theta=pi/2
+        expected = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, np.exp(-1j * np.pi / 4), 0], [0, 0, 0, np.exp(1j * np.pi / 4)]])
+        assert np.allclose(CRotz(np.pi / 2), expected, atol=tol, rtol=0)
+
+        # test identity for theta=pi
+        expected = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, -1j, 0], [0, 0, 0, 1j]])
+        assert np.allclose(CRotz(np.pi), expected, atol=tol, rtol=0)
+
+    def test_controlled_arbitrary_rotation(self, tol):
+        """Test controlled arbitrary rotation is correct"""
+
+        # test identity for phi,theta,omega=0
+        assert np.allclose(CRot3(0, 0, 0), np.identity(4), atol=tol, rtol=0)
+
+        # test identity for phi,theta,omega=pi
+        expected = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, -1], [0, 0, 1, 0]])
+        assert np.allclose(CRot3(np.pi, np.pi, np.pi), expected, atol=tol, rtol=0)
+
+        def arbitrary_Crotation(x, y, z):
+            """controlled arbitrary single qubit rotation"""
+            c = np.cos(y / 2)
+            s = np.sin(y / 2)
+            return np.array(
+                [
+                    [1, 0, 0, 0],
+                    [0, 1, 0, 0],
+                    [0, 0, np.exp(-0.5j * (x + z)) * c, -np.exp(0.5j * (x - z)) * s],
+                    [0, 0, np.exp(-0.5j * (x - z)) * s, np.exp(0.5j * (x + z)) * c]
+                ]
+            )
+
+        a, b, c = 0.432, -0.152, 0.9234
+        assert np.allclose(CRot3(a, b, c), arbitrary_Crotation(a, b, c), atol=tol, rtol=0)
+
+
+class TestStateFunctions:
+    """Arbitrary state and operator tests."""
+
+    def test_unitary(self, tol):
+        """Test that the unitary function produces the correct output."""
+
+        out = unitary(U)
+
+        # verify output type
+        assert isinstance(out, np.ndarray)
+
+        # verify equivalent to input state
+        assert np.allclose(out, U, atol=tol, rtol=0)
+
+    def test_unitary_exceptions(self):
+        """Tests that the unitary function raises the proper errors."""
+
+        # test non-square matrix
+        with pytest.raises(ValueError, match="must be a square matrix"):
+            unitary(U[1:])
+
+        # test non-unitary matrix
+        U3 = U.copy()
+        U3[0, 0] += 0.5
+        with pytest.raises(ValueError, match="must be unitary"):
+            unitary(U3)
+
+    def test_hermitian(self, tol):
+        """Test that the hermitian function produces the correct output."""
+
+        out = hermitian(H)
+
+        # verify output type
+        assert isinstance(out, np.ndarray)
+
+        # verify equivalent to input state
+        assert np.allclose(out, H, atol=tol, rtol=0)
+
+    def test_hermitian_exceptions(self):
+        """Tests that the hermitian function raises the proper errors."""
+
+        # test non-square matrix
+        with pytest.raises(ValueError, match="must be a square matrix"):
+            hermitian(H[1:])
+
+        # test non-Hermitian matrix
+        H2 = H.copy()
+        H2[0, 1] = H2[0, 1].conj()
+        with pytest.raises(ValueError, match="must be Hermitian"):
+            hermitian(H2)
+ 
+
+class TestDefaultTensorIntegration:
+    """Integration tests for default.tensor. This test ensures it integrates
     properly with the PennyLane interface, in particular QNode."""
 
     def test_load_tensornet_device(self):
         """Test that the tensor network plugin loads correctly"""
 
-        dev = qml.device("expt.tensornet", wires=2)
+        dev = qml.device("default.tensor", wires=2)
         assert dev.num_wires == 2
         assert dev.shots == 1000
         assert dev.analytic
-        assert dev.short_name == "expt.tensornet"
+        assert dev.short_name == "default.tensor"
 
     def test_args(self):
         """Test that the plugin requires correct arguments"""
@@ -114,7 +350,7 @@ class TestTensornetIntegration:
         with pytest.raises(
             TypeError, match="missing 1 required positional argument: 'wires'"
         ):
-            qml.device("expt.tensornet")
+            qml.device("default.tensor")
 
     @pytest.mark.parametrize("gate", set(qml.ops.cv.ops))
     def test_unsupported_gate_error(self, tensornet_device_3_wires, gate):
@@ -135,7 +371,7 @@ class TestTensornetIntegration:
             return qml.expval(qml.X(0))
 
         with pytest.raises(
-            QuantumFunctionError, match="Device expt.tensornet is a qubit device; CV operations are not allowed."
+            QuantumFunctionError, match="Device default.tensor is a qubit device; CV operations are not allowed."
         ):
             x = np.random.random([op.num_params])
             circuit(*x)
@@ -158,7 +394,7 @@ class TestTensornetIntegration:
             return qml.expval(op(*x, wires=wires))
 
         with pytest.raises(
-            QuantumFunctionError, match="Device expt.tensornet is a qubit device; CV operations are not allowed."
+            QuantumFunctionError, match="Device default.tensor is a qubit device; CV operations are not allowed."
         ):
             x = np.random.random([op.num_params])
             circuit(*x)
@@ -416,7 +652,7 @@ class TestTensornetIntegration:
     def test_expval_warnings(self):
         """Tests that expval raises a warning if the given observable is complex."""
 
-        dev = qml.device("expt.tensornet", wires=1)
+        dev = qml.device("default.tensor", wires=1)
 
         A = np.array([[2j, 1j], [-3j, 1j]])
         obs_node = dev._add_node(A, wires=[0])
@@ -462,7 +698,7 @@ class TestTensorExpval:
 
     def test_paulix_pauliy(self, theta, phi, varphi, tol):
         """Test that a tensor product involving PauliX and PauliY works correctly"""
-        dev = qml.device("expt.tensornet", wires=3)
+        dev = qml.device("default.tensor", wires=3)
         dev.reset()
 
         dev.apply("RX", wires=[0], par=[theta])
@@ -478,7 +714,7 @@ class TestTensorExpval:
 
     def test_pauliz_identity(self, theta, phi, varphi, tol):
         """Test that a tensor product involving PauliZ and Identity works correctly"""
-        dev = qml.device("expt.tensornet", wires=3)
+        dev = qml.device("default.tensor", wires=3)
         dev.reset()
         dev.apply("RX", wires=[0], par=[theta])
         dev.apply("RX", wires=[1], par=[phi])
@@ -493,7 +729,7 @@ class TestTensorExpval:
 
     def test_pauliz_hadamard(self, theta, phi, varphi, tol):
         """Test that a tensor product involving PauliZ and PauliY and hadamard works correctly"""
-        dev = qml.device("expt.tensornet", wires=3)
+        dev = qml.device("default.tensor", wires=3)
         dev.reset()
         dev.apply("RX", wires=[0], par=[theta])
         dev.apply("RX", wires=[1], par=[phi])
@@ -508,7 +744,7 @@ class TestTensorExpval:
 
     def test_hermitian(self, theta, phi, varphi, tol):
         """Test that a tensor product involving qml.Hermitian works correctly"""
-        dev = qml.device("expt.tensornet", wires=3)
+        dev = qml.device("default.tensor", wires=3)
         dev.reset()
         dev.apply("RX", wires=[0], par=[theta])
         dev.apply("RX", wires=[1], par=[phi])
@@ -537,7 +773,7 @@ class TestTensorExpval:
 
     def test_hermitian_hermitian(self, theta, phi, varphi, tol):
         """Test that a tensor product involving two Hermitian matrices works correctly"""
-        dev = qml.device("expt.tensornet", wires=3)
+        dev = qml.device("default.tensor", wires=3)
         dev.reset()
         dev.apply("RX", wires=[0], par=[theta])
         dev.apply("RX", wires=[1], par=[phi])
@@ -578,7 +814,7 @@ class TestTensorExpval:
 
     def test_hermitian_identity_expectation(self, theta, phi, varphi, tol):
         """Test that a tensor product involving an Hermitian matrix and the identity works correctly"""
-        dev = qml.device("expt.tensornet", wires=2)
+        dev = qml.device("default.tensor", wires=2)
         dev.reset()
         dev.apply("RY", wires=[0], par=[theta])
         dev.apply("RY", wires=[1], par=[phi])
@@ -602,7 +838,7 @@ class TestTensorVar:
 
     def test_paulix_pauliy(self, theta, phi, varphi, tol):
         """Test that a tensor product involving PauliX and PauliY works correctly"""
-        dev = qml.device("expt.tensornet", wires=3)
+        dev = qml.device("default.tensor", wires=3)
         dev.reset()
         dev.apply("RX", wires=[0], par=[theta])
         dev.apply("RX", wires=[1], par=[phi])
@@ -625,7 +861,7 @@ class TestTensorVar:
 
     def test_pauliz_hadamard(self, theta, phi, varphi, tol):
         """Test that a tensor product involving PauliZ and PauliY and hadamard works correctly"""
-        dev = qml.device("expt.tensornet", wires=3)
+        dev = qml.device("default.tensor", wires=3)
         dev.reset()
         dev.apply("RX", wires=[0], par=[theta])
         dev.apply("RX", wires=[1], par=[phi])
@@ -646,7 +882,7 @@ class TestTensorVar:
 
     def test_hermitian(self, theta, phi, varphi, tol):
         """Test that a tensor product involving qml.Hermitian works correctly"""
-        dev = qml.device("expt.tensornet", wires=3)
+        dev = qml.device("default.tensor", wires=3)
         dev.reset()
         dev.apply("RX", wires=[0], par=[theta])
         dev.apply("RX", wires=[1], par=[phi])
@@ -752,7 +988,7 @@ class TestTensorSample:
 
     def test_paulix_pauliy(self, theta, phi, varphi, monkeypatch, tol):
         """Test that a tensor product involving PauliX and PauliY works correctly"""
-        dev = qml.device("expt.tensornet", wires=3, shots=10000)
+        dev = qml.device("default.tensor", wires=3, shots=10000)
         dev.reset()
         dev.apply("RX", wires=[0], par=[theta])
         dev.apply("RX", wires=[1], par=[phi])
@@ -784,7 +1020,7 @@ class TestTensorSample:
 
     def test_pauliz_hadamard(self, theta, phi, varphi, monkeypatch, tol):
         """Test that a tensor product involving PauliZ and PauliY and hadamard works correctly"""
-        dev = qml.device("expt.tensornet", wires=3)
+        dev = qml.device("default.tensor", wires=3)
         dev.reset()
         dev.apply("RX", wires=[0], par=[theta])
         dev.apply("RX", wires=[1], par=[phi])
@@ -814,7 +1050,7 @@ class TestTensorSample:
 
     def test_hermitian(self, theta, phi, varphi, monkeypatch, tol):
         """Test that a tensor product involving qml.Hermitian works correctly"""
-        dev = qml.device("expt.tensornet", wires=3)
+        dev = qml.device("default.tensor", wires=3)
         dev.reset()
         dev.apply("RX", wires=[0], par=[theta])
         dev.apply("RX", wires=[1], par=[phi])

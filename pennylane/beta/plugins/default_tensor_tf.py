@@ -1,4 +1,4 @@
-# Copyright 2019 Xanadu Quantum Technologies Inc.
+# Copyright 2018-2020 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,15 +23,13 @@ try:
     import tensorflow as tf
 
     if tf.__version__[0] == "1":
-        raise ImportError("expt.tensornet.tf device requires TensorFlow>=2.0")
+        raise ImportError("default.tensor.tf device requires TensorFlow>=2.0")
 
 except ImportError as e:
-    raise ImportError("expt.tensornet.tf device requires TensorFlow>=2.0")
+    raise ImportError("default.tensor.tf device requires TensorFlow>=2.0")
 
-from pennylane.variable import Variable
-from pennylane.plugins.default_qubit import I, X, Y, Z
-
-from pennylane.beta.plugins.expt_tensornet import TensorNetwork
+from pennylane.variable import VariableRef
+from pennylane.beta.plugins.default_tensor import DefaultTensor, I, X, Y, Z
 
 
 # tolerance for numerical errors
@@ -185,12 +183,12 @@ def CRot3(a, b, c):
     return CRotz(c) @ (CRoty(b) @ CRotz(a))
 
 
-class TensorNetworkTF(TensorNetwork):
+class DefaultTensorTF(DefaultTensor):
     """Experimental TensorFlow Tensor Network simulator device for PennyLane.
 
-    **Short name:** ``expt.tensornet.tf``
+    **Short name:** ``default.tensor.tf``
 
-    This experimental device extends ``expt.tensornet`` by making use of
+    This experimental device extends ``default.tensor`` by making use of
     the TensorFlow backend of TensorNetwork. As a result, it supports
     classical backpropagation as a means to compute the Jacobian. This can
     be faster than the parameter-shift rule for analytic quantum gradients
@@ -204,7 +202,7 @@ class TensorNetworkTF(TensorNetwork):
 
     **Example:**
 
-    >>> dev = qml.device("expt.tensornet.tf", wires=1)
+    >>> dev = qml.device("default.tensor.tf", wires=1)
     >>> @qml.qnode(dev, interface="autograd", diff_method="best")
     >>> def circuit(x):
     ...     qml.RX(x[1], wires=0)
@@ -218,7 +216,7 @@ class TensorNetworkTF(TensorNetwork):
 
         TensorFlow is used as the device backend, and is independent
         of the chosen QNode interface. In the example above, we combine
-        ``expt.tensornet.tf`` with the ``autograd`` interface.
+        ``default.tensor.tf`` with the ``autograd`` interface.
         It can also be used with the ``torch`` and the ``tf`` interface.
 
     Args:
@@ -228,10 +226,10 @@ class TensorNetworkTF(TensorNetwork):
 
     # pylint: disable=too-many-instance-attributes
     name = "PennyLane TensorNetwork (TensorFlow) simulator plugin"
-    short_name = "expt.tensornet.tf"
+    short_name = "default.tensor.tf"
     _capabilities = {"model": "qubit", "tensor_observables": True, "provides_jacobian": True}
 
-    _operation_map = copy.copy(TensorNetwork._operation_map)
+    _operation_map = copy.copy(DefaultTensor._operation_map)
     _operation_map.update(
         {
             "PhaseShift": Rphi,
@@ -329,7 +327,7 @@ class TensorNetworkTF(TensorNetwork):
         # check that no Variables remain in the op_params dictionary
         values = [item for sublist in self.op_params.values() for item in sublist]
         assert not any(
-            isinstance(v, Variable) for v in values
+            isinstance(v, VariableRef) for v in values
         ), "A pennylane.Variable instance was not correctly converted to a tf.Variable"
 
         # flatten the variables list in case of nesting
@@ -347,14 +345,16 @@ class TensorNetworkTF(TensorNetwork):
         # individual operations are already applied inside self.pre_apply()
         pass
 
-    def execute(self, queue, observables, parameters=None):
+    def execute(self, queue, observables, parameters=None, **kwargs):
         # pylint: disable=bad-super-call
-        results = super(TensorNetwork, self).execute(queue, observables, parameters=parameters)
+        results = super(DefaultTensor, self).execute(queue, observables, parameters=parameters)
 
         with self.tape:
             # convert the results list into a single tensor
             self.res = tf.stack(results)
 
+        if kwargs.get("return_native_type", False):
+            return self.res
         # return the results as a NumPy array
         return self.res.numpy()
 
@@ -374,6 +374,7 @@ class TensorNetworkTF(TensorNetwork):
         """
         self.execute(queue, observables, parameters=parameters)
         jac = self.tape.jacobian(self.res, self.variables, experimental_use_pfor=False)
+        # TODO use unconnected_gradients=tf.UnconnectedGradients.ZERO instead of the following?
         jac = [i if i is not None else tf.zeros(self.res.shape, dtype=tf.float64) for i in jac]
         jac = tf.stack(jac)
         return jac.numpy().T

@@ -1,4 +1,4 @@
-# Copyright 2019 Xanadu Quantum Technologies Inc.
+# Copyright 2018-2020 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -56,7 +56,7 @@ def QNode(func, device, *, interface="autograd", mutable=True, diff_method="best
             * ``interface='torch'``: Allows PyTorch to backpropogate
               through the QNode.The QNode accepts and returns Torch tensors.
 
-            * ``interface='tfe'``: Allows TensorFlow in eager mode to backpropogate
+            * ``interface='tf'``: Allows TensorFlow in eager mode to backpropogate
               through the QNode.The QNode accepts and returns
               TensorFlow ``tf.Variable`` and ``tf.tensor`` objects.
 
@@ -156,7 +156,7 @@ def qnode(device, *, interface="autograd", mutable=True, diff_method="best", pro
             * ``interface='torch'``: Allows PyTorch to backpropogate
               through the QNode.The QNode accepts and returns Torch tensors.
 
-            * ``interface='tfe'``: Allows TensorFlow in eager mode to backpropogate
+            * ``interface='tf'``: Allows TensorFlow in eager mode to backpropogate
               through the QNode.The QNode accepts and returns
               TensorFlow ``tf.Variable`` and ``tf.tensor`` objects.
 

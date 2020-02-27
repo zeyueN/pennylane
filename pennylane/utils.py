@@ -1,4 +1,4 @@
-# Copyright 2018-2019 Xanadu Quantum Technologies Inc.
+# Copyright 2018-2020 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ across the PennyLane submodules.
 # pylint: disable=protected-access
 from collections.abc import Iterable
 from collections import OrderedDict
+import copy
 import numbers
 import functools
 import inspect
@@ -26,17 +27,16 @@ import itertools
 import numpy as np
 
 import pennylane as qml
-from pennylane.variable import Variable
+from pennylane.variable import VariableRef
 
 
 def _flatten(x):
-    """Iterate through an arbitrarily nested structure, flattening it in depth-first order.
+    """Iterate recursively through an arbitrarily nested structure in depth-first order.
 
     See also :func:`_unflatten`.
 
     Args:
-        x (array, Iterable, Any): each element of an array or an Iterable may itself be an object
-            that can be flattened
+        x (array, Iterable, Any): each element of an array or an Iterable may itself be any of these types
 
     Yields:
         Any: elements of x in depth-first order
@@ -66,7 +66,7 @@ def _unflatten(flat, model):
         Union[array, list, Any], array: first elements of flat arranged into the nested
         structure of model, unused elements of flat
     """
-    if isinstance(model, (numbers.Number, Variable, str)):
+    if isinstance(model, (numbers.Number, VariableRef, str)):
         return flat[0], flat[1:]
 
     if isinstance(model, np.ndarray):
@@ -185,11 +185,11 @@ def expand(U, wires, num_wires):
     # permute U to take into account rearranged wires
     return U[:, perm][perm]
 
+
 @functools.lru_cache()
 def pauli_eigs(n):
-    """Returns the eigenvalues for :math:`A^{\otimes n}`, where :math:`A` is
-    any operator that shares eigenvalues with the Pauli matrices ("standard
-    observables").
+    r"""Eigenvalues for :math:`A^{\otimes n}`, where :math:`A` is
+    Pauli operator, or shares its eigenvalues.
 
     As an example if n==2, then the eigenvalues of a tensor product consisting
     of two matrices sharing the eigenvalues with Pauli matrices is returned.
@@ -202,6 +202,7 @@ def pauli_eigs(n):
     if n == 1:
         return np.array([1, -1])
     return np.concatenate([pauli_eigs(n - 1), -pauli_eigs(n - 1)])
+
 
 class Recorder:
     """Recorder class used by the :class:`~.OperationRecorder`.
@@ -225,13 +226,22 @@ class Recorder:
         if self._old_context:
             self._old_context._append_op(op)
 
+    def _remove_op(self, op):
+        """Remove an Operation from the queue."""
+        self._ops.remove(op)
+
+        # this ensure the recorder does not interfere with
+        # any QNode contexts
+        if self._old_context:
+            self._old_context._remove_op(op)
+
     @property
     def queue(self):
-        """Queue of the underlying QNode if existant, otherwise a copy of the internal operator list."""
+        """Queue of the underlying QNode if existant, otherwise the internal operator list."""
         if self._old_context:
             return self._old_context.queue
 
-        return self._ops.copy()
+        return self._ops
 
     # Spoof all attributes of the underlying QNode if there is one
     def __getattr__(self, name):
@@ -353,3 +363,106 @@ class OperationRecorder:
                 output += "{}({}(wires={}))\n".format(return_map[op.return_type], op.name, op.wires)
 
         return output
+
+
+def inv(operation_list):
+    """Invert a list of operations or a :doc:`template </introduction/templates>`.
+
+    If the inversion happens inside a QNode, the operations are removed and requeued
+    in the reversed order for proper inversion.
+
+    **Example:**
+
+    The following example illuminates the inversion of a template:
+
+    .. code-block:: python3
+
+        @qml.template
+        def ansatz(weights, wires):
+            for idx, wire in enumerate(wires):
+                qml.RX(weights[idx], wires=[wire])
+
+            for idx in range(len(wires) - 1):
+                qml.CNOT(wires=[wires[idx], wires[idx + 1]])
+
+        dev = qml.device('default.qubit', wires=2)
+
+        @qml.qnode(dev)
+        def circuit(weights):
+            qml.inv(ansatz(weights, wires=[0, 1]))
+            return qml.expval(qml.PauliZ(0) @ qml.PauliZ(1))
+
+    We may also invert an operation sequence:
+
+    .. code-block:: python3
+
+        dev = qml.device('default.qubit', wires=2)
+
+        @qml.qnode(dev)
+        def circuit1():
+            qml.T(wires=[0]).inv()
+            qml.Hadamard(wires=[0]).inv()
+            qml.S(wires=[0]).inv()
+            return qml.expval(qml.PauliZ(0) @ qml.PauliZ(1))
+
+        @qml.qnode(dev)
+        def circuit2():
+            qml.inv([qml.S(wires=[0]), qml.Hadamard(wires=[0]), qml.T(wires=[0])])
+            return qml.expval(qml.PauliZ(0) @ qml.PauliZ(1))
+
+    Double checking that both circuits produce the same output:
+
+    >>> ZZ1 = circuit1()
+    >>> ZZ2 = circuit2()
+    >>> assert ZZ1 == ZZ2
+    True
+
+    Args:
+        operation_list (Iterable[~.Operation]): An iterable of operations
+
+    Returns:
+        List[~.Operation]: The inverted list of operations
+    """
+    if isinstance(operation_list, qml.operation.Operation):
+        operation_list = [operation_list]
+    elif operation_list is None:
+        raise ValueError(
+            "None was passed as an argument to inv. "
+            "This could happen if inversion of a template without the template decorator is attempted."
+        )
+    elif callable(operation_list):
+        raise ValueError(
+            "A function was passed as an argument to inv. "
+            "This could happen if inversion of a template function is attempted. "
+            "Please use inv on the function including its arguments, as in inv(template(args))."
+        )
+    elif not isinstance(operation_list, Iterable):
+        raise ValueError("The provided operation_list is not iterable.")
+
+    non_ops = [
+        (idx, op)
+        for idx, op in enumerate(operation_list)
+        if not isinstance(op, qml.operation.Operation)
+    ]
+
+    if non_ops:
+        string_reps = [" operation_list[{}] = {}".format(idx, op) for idx, op in non_ops]
+        raise ValueError(
+            "The given operation_list does not only contain Operations."
+            + "The following elements of the iterable were not Operations:"
+            + ",".join(string_reps)
+        )
+
+    inv_ops = [op.inv() for op in reversed(copy.deepcopy(operation_list))]
+
+    if qml._current_context is not None:
+        ops_in_queue = {op for op in operation_list if op in qml._current_context.queue}
+
+        for op in ops_in_queue:
+            qml._current_context._remove_op(op)
+
+        for inv_op in inv_ops:
+            qml._current_context._append_op(inv_op)
+            inv_op.queue_idx = qml._current_context.queue.index(inv_op)
+
+    return inv_ops

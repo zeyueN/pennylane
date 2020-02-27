@@ -1,4 +1,4 @@
-# Copyright 2019 Xanadu Quantum Technologies Inc.
+# Copyright 2018-2020 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,20 +15,13 @@
 This submodule contains functionality for running Variational Quantum Eigensolver (VQE)
 computations using PennyLane.
 """
-import functools
-
+# pylint: disable=too-many-arguments, too-few-public-methods
 import numpy as np
 import pennylane as qml
 from pennylane.operation import Observable, Tensor
 
 
-OBS_MAP = {
-    "PauliX": "X",
-    "PauliY": "Y",
-    "PauliZ": "Z",
-    "Hadamard": "H",
-    "Identity": "I"
-}
+OBS_MAP = {"PauliX": "X", "PauliY": "Y", "PauliZ": "Z", "Hadamard": "H", "Identity": "I"}
 
 
 class Hamiltonian:
@@ -44,7 +37,7 @@ class Hamiltonian:
         coeffs (Iterable[float]): coefficients of the Hamiltonian expression
         observables (Iterable[Observable]): observables in the Hamiltonian expression
 
-    .. seealso:: :class:`qml.vqe.cost <pennylane.vqe.cost>`, :func:`~.generate_hamiltonian`
+    .. seealso:: :class:`~.VQECost`, :func:`~.generate_hamiltonian`
 
     **Example:**
 
@@ -53,7 +46,7 @@ class Hamiltonian:
 
     >>> coeffs = [0.2, -0.543]
     >>> obs = [qml.PauliX(0) @ qml.PauliZ(1), qml.PauliZ(0) @ qml.Hadamard(2)]
-    >>> H = qml.vqe.Hamiltonian(coeffs, obs)
+    >>> H = qml.Hamiltonian(coeffs, obs)
     >>> print(H)
     (0.2) [X0 Z1] + (-0.543) [Z0 H2]
 
@@ -128,12 +121,12 @@ class Hamiltonian:
         return "\n+ ".join(terms)
 
 
-class cost:
+class VQECost:
     """Create a VQE cost function, i.e., a cost function returning the
     expectation value of a Hamiltonian.
 
     Args:
-        ansatz (callable): the ansatz for the circuit before the final measurement step
+        ansatz (callable): The ansatz for the circuit before the final measurement step
             Note that the ansatz **must** have the following signature:
 
             .. code-block:: python
@@ -146,15 +139,15 @@ class cost:
         device (Device, Sequence[Device]): Corresponding device(s) where the resulting
             cost function should be executed. This can either be a single device, or a list
             of devices of length matching the number of terms in the Hamiltonian.
-        interface (str, None): which interface to use.
+        interface (str, None): Which interface to use.
             This affects the types of objects that can be passed to/returned to the cost function.
             Supports all interfaces supported by the :func:`~.qnode` decorator.
-        diff_method (str, None): the method of differentiation to use with the created cost function.
+        diff_method (str, None): The method of differentiation to use with the created cost function.
             Supports all differentiation methods supported by the :func:`~.qnode` decorator.
 
     Returns:
         callable: a cost function with signature ``cost_fn(params, **kwargs)`` that evaluates
-        the expectation of the Hamiltonian on the provided device(s).
+        the expectation of the Hamiltonian on the provided device(s)
 
     .. seealso:: :class:`~.Hamiltonian`, :func:`~.generate_hamiltonian`, :func:`~.map`, :func:`~.dot`
 
@@ -191,7 +184,7 @@ class cost:
 
     Next, we can define the cost function:
 
-    >>> cost = qml.vqe.cost(ansatz, hamiltonian, dev, interface="torch")
+    >>> cost = qml.VQECost(ansatz, hamiltonian, dev, interface="torch")
     >>> params = torch.rand([4, 3])
     >>> cost(params)
     tensor(0.0245, dtype=torch.float64)
@@ -199,20 +192,20 @@ class cost:
     The cost function can be minimized using any gradient descent-based
     :doc:`optimizer </introduction/optimizers>`.
     """
+
     def __init__(self, ansatz, hamiltonian, device, interface="autograd", diff_method="best"):
         coeffs, observables = hamiltonian.terms
         self.hamiltonian = hamiltonian
         """Hamiltonian: the hamiltonian defining the VQE problem."""
 
-        self.qnodes = qml.map(ansatz, observables, device, interface=interface, diff_method=diff_method)
-        """QNodeCluster: The QNodes to be evaluated. Each QNode corresponds to the
+        self.qnodes = qml.map(
+            ansatz, observables, device, interface=interface, diff_method=diff_method
+        )
+        """QNodeCollection: The QNodes to be evaluated. Each QNode corresponds to the
         the expectation value of each observable term after applying the circuit ansatz.
         """
 
         self.cost_fn = qml.dot(coeffs, self.qnodes)
 
     def __call__(self, *args, **kwargs):
-        if self.qnodes.interface == "autograd":
-            return self.cost_fn(*args, **kwargs)[0]
-        else:
-            return self.cost_fn(*args, **kwargs)
+        return self.cost_fn(*args, **kwargs)

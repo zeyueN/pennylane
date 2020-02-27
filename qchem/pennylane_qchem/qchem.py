@@ -1,4 +1,4 @@
-# Copyright 2018-2019 Xanadu Quantum Technologies Inc.
+# Copyright 2018-2020 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ from openfermionpsi4 import run_psi4
 from openfermionpyscf import run_pyscf
 
 import pennylane as qml
-from pennylane.vqe import Hamiltonian
+from pennylane import Hamiltonian
 
 
 def _exec_exists(prog):
@@ -448,7 +448,7 @@ def _qubit_operators_equivalent(openfermion_qubit_operator, pennylane_qubit_oper
     Args:
         openfermion_qubit_operator (QubitOperator): OpenFermion qubit operator represented as
             a Pauli summation
-        pennylane_qubit_operator (pennylane.vqe.Hamiltonian): PennyLane's VQE
+        pennylane_qubit_operator (pennylane.Hamiltonian): PennyLane
             Hamiltonian object
 
     Returns:
@@ -459,7 +459,7 @@ def _qubit_operators_equivalent(openfermion_qubit_operator, pennylane_qubit_oper
 
 
 def convert_hamiltonian(qubit_hamiltonian):
-    r"""Converts OpenFermion `QubitOperator` Hamiltonian to Pennylane VQE Hamiltonian
+    r"""Converts OpenFermion :class:`~.QubitOperator` Hamiltonian to Pennylane VQE Hamiltonian
 
     **Example usage**
 
@@ -474,7 +474,7 @@ def convert_hamiltonian(qubit_hamiltonian):
         qubit_hamiltonian (QubitOperator): Hamiltonian represented as an OpenFermion `QubitOperator`
 
     Returns:
-        (pennylane.vqe.Hamiltonian): Pennylane VQE Hamiltonian
+        (pennylane.Hamiltonian): Pennylane VQE Hamiltonian
     """
 
     # The `_qubit_operator_to_terms` function is separated out from this function
@@ -503,8 +503,25 @@ def generate_hamiltonian(
 
     **Example usage:**
 
-    >>> generate_hamiltonian('h2', 'h2.xyz', 0, 1, 'sto-3g')
-    (<pennylane.vqe.vqe.Hamiltonian object at 0x7fa406966e48>, 4)
+    >>> H, n_qubits = generate_hamiltonian('h2', 'h2.xyz', 0, 1, 'sto-3g')
+    >>> print(n_qubits)
+    4
+    >>> print(H)
+    (-0.04207897647782188) [I0]
+    + (0.17771287465139934) [Z0]
+    + (0.1777128746513993) [Z1]
+    + (-0.24274280513140484) [Z2]
+    + (-0.24274280513140484) [Z3]
+    + (0.17059738328801055) [Z0 Z1]
+    + (0.04475014401535161) [Y0 X1 X2 Y3]
+    + (-0.04475014401535161) [Y0 Y1 X2 X3]
+    + (-0.04475014401535161) [X0 X1 Y2 Y3]
+    + (0.04475014401535161) [X0 Y1 Y2 X3]
+    + (0.12293305056183801) [Z0 Z2]
+    + (0.1676831945771896) [Z0 Z3]
+    + (0.1676831945771896) [Z1 Z2]
+    + (0.12293305056183801) [Z1 Z3]
+    + (0.176276408043196) [Z2 Z3]
 
     Args:
         mol_name (str): name of the molecule
@@ -524,7 +541,7 @@ def generate_hamiltonian(
                 map the second-quantized electronic Hamiltonian to the qubit Hamiltonian
         outpath (str): path to the directory containing output files
     Returns:
-        tuple(pennylane.vqe.Hamiltonian, int): the fermionic-to-qubit transformed
+        tuple[pennylane.Hamiltonian, int]: the fermionic-to-qubit transformed
         Hamiltonian and the number of qubits
 
      """

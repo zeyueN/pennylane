@@ -1,4 +1,4 @@
-# Copyright 2018-2019 Xanadu Quantum Technologies Inc.
+# Copyright 2018-2020 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,19 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 r"""
-Subroutines are the most basic template, consisting of a collection of quantum operations. As opposed
-to layers and embeddings, subroutines do not encode features, and they have no native option to be applied
-repeatedly.
+Contains the ``Interferometer`` template.
 """
-#pylint: disable-msg=too-many-branches,too-many-arguments,protected-access
+# pylint: disable-msg=too-many-branches,too-many-arguments,protected-access
+from pennylane.templates.decorator import template
 from pennylane.ops import Beamsplitter, Rotation
-from pennylane.templates.utils import (_check_shapes,
-                                       _check_no_variable,
-                                       _check_wires,
-                                       _check_hyperp_is_in_options)
+from pennylane.templates.utils import (
+    _check_shapes,
+    _check_no_variable,
+    _check_wires,
+    _check_is_in_options,
+)
 
 
-def Interferometer(theta, phi, varphi, wires, mesh='rectangular', beamsplitter='pennylane'):
+@template
+def Interferometer(theta, phi, varphi, wires, mesh="rectangular", beamsplitter="pennylane"):
     r"""General linear interferometer, an array of beamsplitters and phase shifters.
 
     For :math:`M` wires, the general interferometer is specified by
@@ -105,20 +107,27 @@ def Interferometer(theta, phi, varphi, wires, mesh='rectangular', beamsplitter='
 
     #############
     # Input checks
-    _check_no_variable([beamsplitter, mesh], ['beamsplitter', 'mesh'])
+    _check_no_variable(beamsplitter, msg="'beamsplitter' cannot be differentiable")
+    _check_no_variable(mesh, msg="'mesh' cannot be differentiable")
 
-    wires, n_wires = _check_wires(wires)
+    wires = _check_wires(wires)
 
     weights_list = [theta, phi, varphi]
-    n_if = n_wires*(n_wires-1)//2
-    shape_list = [(n_if,), (n_if,), (n_wires,)]
-    _check_shapes(weights_list, shape_list)
+    n_wires = len(wires)
+    n_if = n_wires * (n_wires - 1) // 2
+    expected_shapes = [(n_if,), (n_if,), (n_wires,)]
+    _check_shapes(weights_list, expected_shapes, msg="wrong shape of weight input(s) detected")
 
-    msg = "Beamsplitter option {} not recognized.".format(mesh)
-    _check_hyperp_is_in_options(beamsplitter, ['clements', 'pennylane'], msg=msg)
-
-    msg = "Mesh option {} not recognized.".format(mesh)
-    _check_hyperp_is_in_options(mesh, ['triangular', 'rectangular'], msg=msg)
+    _check_is_in_options(
+        beamsplitter,
+        ["clements", "pennylane"],
+        msg="did not recognize option {} for 'beamsplitter'" "".format(beamsplitter),
+    )
+    _check_is_in_options(
+        mesh,
+        ["triangular", "rectangular"],
+        msg="did not recognize option {} for 'mesh'" "".format(mesh),
+    )
     ###############
 
     M = len(wires)
@@ -130,37 +139,32 @@ def Interferometer(theta, phi, varphi, wires, mesh='rectangular', beamsplitter='
 
     n = 0  # keep track of free parameters
 
-    if mesh == 'rectangular':
+    if mesh == "rectangular":
         # Apply the Clements beamsplitter array
         # The array depth is N
         for l in range(M):
             for k, (w1, w2) in enumerate(zip(wires[:-1], wires[1:])):
-                #skip even or odd pairs depending on layer
-                if (l+k)%2 != 1:
-                    if beamsplitter == 'clements':
+                # skip even or odd pairs depending on layer
+                if (l + k) % 2 != 1:
+                    if beamsplitter == "clements":
                         Rotation(phi[n], wires=[w1])
                         Beamsplitter(theta[n], 0, wires=[w1, w2])
                     else:
                         Beamsplitter(theta[n], phi[n], wires=[w1, w2])
                     n += 1
 
-    elif mesh == 'triangular':
+    elif mesh == "triangular":
         # apply the Reck beamsplitter array
         # The array depth is 2*N-3
-        for l in range(2*M-3):
-            for k in range(abs(l+1-(M-1)), M-1, 2):
-                if beamsplitter == 'clements':
+        for l in range(2 * M - 3):
+            for k in range(abs(l + 1 - (M - 1)), M - 1, 2):
+                if beamsplitter == "clements":
                     Rotation(phi[n], wires=[wires[k]])
-                    Beamsplitter(theta[n], 0, wires=[wires[k], wires[k+1]])
+                    Beamsplitter(theta[n], 0, wires=[wires[k], wires[k + 1]])
                 else:
-                    Beamsplitter(theta[n], phi[n], wires=[wires[k], wires[k+1]])
+                    Beamsplitter(theta[n], phi[n], wires=[wires[k], wires[k + 1]])
                 n += 1
 
     # apply the final local phase shifts to all modes
     for i, p in enumerate(varphi):
         Rotation(p, wires=[wires[i]])
-
-
-subroutines = {"Interferometer"}
-
-__all__ = list(subroutines)

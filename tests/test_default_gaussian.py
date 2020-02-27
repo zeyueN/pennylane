@@ -1,4 +1,4 @@
-# Copyright 2018 Xanadu Quantum Technologies Inc.
+# Copyright 2018-2020 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -715,7 +715,7 @@ class TestDefaultGaussianIntegration:
         if g == 'GaussianState':
             p = [np.array([0.432, 0.123, 0.342, 0.123]), np.diag([0.5234]*4)]
         elif g == 'Interferometer':
-            p = [np.array(U)]
+            p = [U]
         else:
             p = [0.432423, -0.12312, 0.324, 0.763][:op.num_params]
 

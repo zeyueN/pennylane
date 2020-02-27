@@ -1,4 +1,4 @@
-# Copyright 2018 Xanadu Quantum Technologies Inc.
+# Copyright 2018-2020 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,8 +29,9 @@ import pennylane as qml
 
 from pennylane.utils import _flatten, unflatten
 from pennylane.qnodes import QNode, QuantumFunctionError
-from pennylane.plugins.default_qubit import CNOT, Rotx, Roty, Rotz, I, Y, Z
 from pennylane._device import DeviceError
+
+from gate_data import CNOT, Rotx, Roty, Rotz, I, Y, Z
 
 
 def expZ(state):

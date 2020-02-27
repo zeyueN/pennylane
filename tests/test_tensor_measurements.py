@@ -1,4 +1,4 @@
-# Copyright 2018 Xanadu Quantum Technologies Inc.
+# Copyright 2018-2020 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,8 +17,11 @@ Integration tests to ensure that tensor observables return the correct result.
 import pytest
 
 import numpy as np
+import itertools
+import functools
 import pennylane as qml
 from pennylane import expval, var, sample
+from gate_data import I, X, Y, Z, S, Rotx, Roty, H, CNOT
 
 
 Z = np.array([[1, 0], [0, -1]])
@@ -35,14 +38,22 @@ def ansatz(a, b, c):
     qml.CNOT(wires=[1, 2])
 
 
+@pytest.mark.parametrize("analytic", [True, False])
 @pytest.mark.parametrize("theta,phi,varphi", list(zip(THETA, PHI, VARPHI)))
 class TestTensorExpval:
     """Test tensor expectation values"""
 
-    def test_tensor_product(self, theta, phi, varphi, tol):
+    @pytest.fixture
+    def tolerance(self, analytic, tol):
+        if not analytic:
+            return {"atol": 0.01, "rtol": 0.1}
+
+        return {"atol": tol, "rtol": 0}
+
+    def test_tensor_product(self, analytic, theta, phi, varphi, tolerance):
         """Test that a tensor product ZxZ gives the same result as simply
         using an Hermitian matrix"""
-        dev = qml.device("default.qubit", wires=3)
+        dev = qml.device("default.qubit", wires=3, analytic=analytic, shots=int(1e6))
 
         @qml.qnode(dev)
         def circuit1(a, b, c):
@@ -57,12 +68,12 @@ class TestTensorExpval:
         res1 = circuit1(theta, phi, varphi)
         res2 = circuit2(theta, phi, varphi)
 
-        assert np.allclose(res1, res2, atol=tol, rtol=0)
+        assert np.allclose(res1, res2, **tolerance)
 
-    def test_combine_tensor_with_non_tensor(self, theta, phi, varphi, tol):
+    def test_combine_tensor_with_non_tensor(self, analytic, theta, phi, varphi, tolerance):
         """Test that a tensor product along with a non-tensor product
         continues to function correctly"""
-        dev = qml.device("default.qubit", wires=3)
+        dev = qml.device("default.qubit", wires=3, analytic=analytic, shots=int(1e6))
 
         @qml.qnode(dev)
         def circuit1(a, b, c):
@@ -82,11 +93,11 @@ class TestTensorExpval:
         res1 = circuit1(theta, phi, varphi)
         res2 = circuit2(theta, phi, varphi), circuit3(theta, phi, varphi)
 
-        assert np.allclose(res1, res2, atol=tol, rtol=0)
+        assert np.allclose(res1, res2, **tolerance)
 
-    def test_paulix_tensor_pauliy(self, theta, phi, varphi, tol):
+    def test_paulix_tensor_pauliy(self, analytic, theta, phi, varphi, tolerance):
         """Test that a tensor product involving PauliX and PauliY works correctly"""
-        dev = qml.device("default.qubit", wires=3)
+        dev = qml.device("default.qubit", wires=3, analytic=analytic, shots=int(1e6))
 
         @qml.qnode(dev)
         def circuit(a, b, c):
@@ -96,11 +107,11 @@ class TestTensorExpval:
         res = circuit(theta, phi, varphi)
         expected = np.sin(theta) * np.sin(phi) * np.sin(varphi)
 
-        assert np.allclose(res, expected, atol=tol, rtol=0)
+        assert np.allclose(res, expected, **tolerance)
 
-    def test_paulix_tensor_pauliy_gradient(self, theta, phi, varphi, tol):
+    def test_paulix_tensor_pauliy_gradient(self, analytic, theta, phi, varphi, tolerance):
         """Test that a tensor product involving PauliX and PauliY works correctly"""
-        dev = qml.device("default.qubit", wires=3)
+        dev = qml.device("default.qubit", wires=3, analytic=analytic, shots=int(1e6))
 
         @qml.qnode(dev)
         def circuit(a, b, c):
@@ -111,11 +122,11 @@ class TestTensorExpval:
         res = dcircuit(theta, phi, varphi)
         expected = np.cos(theta) * np.sin(phi) * np.sin(varphi)
 
-        assert np.allclose(res, expected, atol=tol, rtol=0)
+        assert np.allclose(res, expected, **tolerance)
 
-    def test_pauliz_tensor_identity(self, theta, phi, varphi, tol):
+    def test_pauliz_tensor_identity(self, analytic, theta, phi, varphi, tolerance):
         """Test that a tensor product involving PauliZ and Identity works correctly"""
-        dev = qml.device("default.qubit", wires=3)
+        dev = qml.device("default.qubit", wires=3, analytic=analytic, shots=int(1e6))
 
         @qml.qnode(dev)
         def circuit(a, b, c):
@@ -125,11 +136,11 @@ class TestTensorExpval:
         res = circuit(theta, phi, varphi)
         expected = np.cos(varphi) * np.cos(phi)
 
-        assert np.allclose(res, expected, atol=tol, rtol=0)
+        assert np.allclose(res, expected, **tolerance)
 
-    def test_pauliz_tensor_hadamard(self, theta, phi, varphi, tol):
+    def test_pauliz_tensor_hadamard(self, analytic, theta, phi, varphi, tolerance):
         """Test that a tensor product involving PauliZ and hadamard works correctly"""
-        dev = qml.device("default.qubit", wires=3)
+        dev = qml.device("default.qubit", wires=3, analytic=analytic, shots=int(1e6))
 
         @qml.qnode(dev)
         def circuit(a, b, c):
@@ -139,11 +150,11 @@ class TestTensorExpval:
         res = circuit(theta, phi, varphi)
         expected = -(np.cos(varphi) * np.sin(phi) + np.sin(varphi) * np.cos(theta)) / np.sqrt(2)
 
-        assert np.allclose(res, expected, atol=tol, rtol=0)
+        assert np.allclose(res, expected, **tolerance)
 
-    def test_hermitian(self, theta, phi, varphi, tol):
+    def test_hermitian(self, analytic, theta, phi, varphi, tolerance):
         """Test that a tensor product involving an Hermitian matrix works correctly"""
-        dev = qml.device("default.qubit", wires=3)
+        dev = qml.device("default.qubit", wires=3, analytic=analytic, shots=int(1e6))
 
         A = np.array(
             [
@@ -167,11 +178,11 @@ class TestTensorExpval:
             + np.sin(phi)
         )
 
-        assert np.allclose(res, expected, atol=tol, rtol=0)
+        assert np.allclose(res, expected, **tolerance)
 
-    def test_hermitian_tensor_hermitian(self, theta, phi, varphi, tol):
+    def test_hermitian_tensor_hermitian(self, analytic, theta, phi, varphi, tolerance):
         """Test that a tensor product involving two Hermitian matrices works correctly"""
-        dev = qml.device("default.qubit", wires=3)
+        dev = qml.device("default.qubit", wires=3, analytic=analytic, shots=int(1e6))
 
         A1 = np.array([[1, 2], [2, 4]])
 
@@ -207,11 +218,11 @@ class TestTensorExpval:
             )
         )
 
-        assert np.allclose(res, expected, atol=tol, rtol=0)
+        assert np.allclose(res, expected, **tolerance)
 
-    def test_hermitian_tensor_identity_expectation(self, theta, phi, varphi, tol):
+    def test_hermitian_tensor_identity_expectation(self, analytic, theta, phi, varphi, tolerance):
         """Test that a tensor product involving an Hermitian matrix and the identity works correctly"""
-        dev = qml.device("default.qubit", wires=2)
+        dev = qml.device("default.qubit", wires=2, analytic=analytic, shots=int(1e6))
 
         A = np.array(
             [[1.02789352, 1.61296440 - 0.3498192j], [1.61296440 + 0.3498192j, 1.23920938 + 0j]]
@@ -231,16 +242,24 @@ class TestTensorExpval:
         d = A[1, 1]
         expected = ((a - d) * np.cos(theta) + 2 * re_b * np.sin(theta) * np.sin(phi) + a + d) / 2
 
-        assert np.allclose(res, expected, atol=tol, rtol=0)
+        assert np.allclose(res, expected, **tolerance)
 
 
+@pytest.mark.parametrize("analytic", [True, False])
 @pytest.mark.parametrize("theta, phi, varphi", list(zip(THETA, PHI, VARPHI)))
 class TestTensorVar:
     """Tests for variance of tensor observables"""
 
-    def test_paulix_tensor_pauliy(self, theta, phi, varphi, tol):
+    @pytest.fixture
+    def tolerance(self, analytic, tol):
+        if not analytic:
+            return {"atol": 0.01, "rtol": 0.2}
+
+        return {"atol": tol, "rtol": 0}
+
+    def test_paulix_tensor_pauliy(self, analytic, theta, phi, varphi, tolerance):
         """Test that a tensor product involving PauliX and PauliY works correctly"""
-        dev = qml.device("default.qubit", wires=3)
+        dev = qml.device("default.qubit", wires=3, analytic=analytic, shots=int(1e6))
 
         @qml.qnode(dev)
         def circuit(a, b, c):
@@ -257,11 +276,11 @@ class TestTensorVar:
             + 14
         ) / 16
 
-        assert np.allclose(res, expected, atol=tol, rtol=0)
+        assert np.allclose(res, expected, **tolerance)
 
-    def test_pauliz_tensor_hadamard(self, theta, phi, varphi, tol):
+    def test_pauliz_tensor_hadamard(self, analytic, theta, phi, varphi, tolerance):
         """Test that a tensor product involving PauliZ and hadamard works correctly"""
-        dev = qml.device("default.qubit", wires=3)
+        dev = qml.device("default.qubit", wires=3, analytic=analytic, shots=int(1e6))
 
         @qml.qnode(dev)
         def circuit(a, b, c):
@@ -276,11 +295,11 @@ class TestTensorVar:
             - 2 * np.cos(theta) * np.sin(phi) * np.sin(2 * varphi)
         ) / 4
 
-        assert np.allclose(res, expected, atol=tol, rtol=0)
+        assert np.allclose(res, expected, **tolerance)
 
-    def test_tensor_hermitian(self, theta, phi, varphi, tol):
+    def test_tensor_hermitian(self, analytic, theta, phi, varphi, tolerance):
         """Test that a tensor product involving qml.Hermitian works correctly"""
-        dev = qml.device("default.qubit", wires=3)
+        dev = qml.device("default.qubit", wires=3, analytic=analytic, shots=int(1e6))
 
         A = np.array(
             [
@@ -315,14 +334,32 @@ class TestTensorVar:
             )
         ) / 16
 
-        assert np.allclose(res, expected, atol=tol, rtol=0)
+        assert np.allclose(res, expected, **tolerance)
+
+
+def tensor_product(observables):
+    return functools.reduce(np.kron, observables)
 
 
 @pytest.mark.parametrize("theta, phi, varphi", list(zip(THETA, PHI, VARPHI)))
 class TestTensorSample:
     """Tests for samples of tensor observables"""
 
-    def test_paulix_tensor_pauliy(self, theta, phi, varphi, monkeypatch, tol):
+    def test_paulix_tensor_pauliz(self, theta, phi, varphi, tol):
+        """Test that a tensor product involving PauliX and PauliZ works correctly"""
+        dev = qml.device("default.qubit", wires=2)
+
+        @qml.qnode(dev)
+        def circuit():
+            qml.Hadamard(wires=0)
+            return sample(qml.PauliX(0) @ qml.PauliZ(1))
+
+        s1 = circuit()
+
+        # s1 should only contain 1
+        assert np.allclose(s1, 1, atol=tol, rtol=0)
+
+    def test_paulix_tensor_pauliy(self, theta, phi, varphi, tol):
         """Test that a tensor product involving PauliX and PauliY works correctly"""
         dev = qml.device("default.qubit", wires=3)
 
@@ -331,29 +368,31 @@ class TestTensorSample:
             ansatz(a, b, c)
             return sample(qml.PauliX(0) @ qml.PauliY(2))
 
-        with monkeypatch.context() as m:
-            m.setattr("numpy.random.choice", lambda x, y, p: (x, p))
-            s1, p = circuit(theta, phi, varphi)
+        s1 = circuit(theta, phi, varphi)
 
         # s1 should only contain 1 and -1
         assert np.allclose(s1 ** 2, 1, atol=tol, rtol=0)
 
-        mean = s1 @ p
-        expected = np.sin(theta) * np.sin(phi) * np.sin(varphi)
-        assert np.allclose(mean, expected, atol=tol, rtol=0)
+        zero_state = np.zeros(2 ** 3)
+        zero_state[0] = 1
+        psi = zero_state
+        psi = tensor_product([Rotx(theta), I, I]) @ zero_state
+        psi = tensor_product([I, Rotx(phi), I]) @ psi
+        psi = tensor_product([I, I, Rotx(varphi)]) @ psi
+        psi = tensor_product([CNOT, I]) @ psi
+        psi = tensor_product([I, CNOT]) @ psi
 
-        var = (s1 ** 2) @ p - (s1 @ p).real ** 2
-        expected = (
-            8 * np.sin(theta) ** 2 * np.cos(2 * varphi) * np.sin(phi) ** 2
-            - np.cos(2 * (theta - phi))
-            - np.cos(2 * (theta + phi))
-            + 2 * np.cos(2 * theta)
-            + 2 * np.cos(2 * phi)
-            + 14
-        ) / 16
-        assert np.allclose(var, expected, atol=tol, rtol=0)
+        # Diagonalize according to the observable
+        psi = tensor_product([H, I, I]) @ psi
+        psi = tensor_product([I, I, Z]) @ psi
+        psi = tensor_product([I, I, S]) @ psi
+        psi = tensor_product([I, I, H]) @ psi
 
-    def test_pauliz_tensor_hadamard(self, theta, phi, varphi, monkeypatch, tol):
+        expected_probabilities = np.abs(psi) ** 2
+
+        assert np.allclose(dev.probability(), expected_probabilities, atol=tol, rtol=0)
+
+    def test_pauliz_tensor_hadamard(self, theta, phi, varphi, tol):
         """Test that a tensor product involving PauliZ and hadamard works correctly"""
         dev = qml.device("default.qubit", wires=3)
 
@@ -362,27 +401,31 @@ class TestTensorSample:
             ansatz(a, b, c)
             return sample(qml.PauliZ(0) @ qml.Hadamard(1) @ qml.PauliY(2))
 
-        with monkeypatch.context() as m:
-            m.setattr("numpy.random.choice", lambda x, y, p: (x, p))
-            s1, p = circuit(theta, phi, varphi)
+        s1 = circuit(theta, phi, varphi)
+
+        zero_state = np.zeros(2 ** 3)
+        zero_state[0] = 1
+        psi = zero_state
+        psi = tensor_product([Rotx(theta), I, I]) @ zero_state
+        psi = tensor_product([I, Rotx(phi), I]) @ psi
+        psi = tensor_product([I, I, Rotx(varphi)]) @ psi
+        psi = tensor_product([CNOT, I]) @ psi
+        psi = tensor_product([I, CNOT]) @ psi
+
+        # Diagonalize according to the observable
+        psi = tensor_product([I, Roty(-np.pi/4), I]) @ psi
+        psi = tensor_product([I, I, Z]) @ psi
+        psi = tensor_product([I, I, S]) @ psi
+        psi = tensor_product([I, I, H]) @ psi
+
+        expected_probabilities = np.abs(psi) ** 2
+
+        assert np.allclose(dev.probability(), expected_probabilities, atol=tol, rtol=0)
 
         # s1 should only contain 1 and -1
         assert np.allclose(s1 ** 2, 1, atol=tol, rtol=0)
 
-        mean = s1 @ p
-        expected = -(np.cos(varphi) * np.sin(phi) + np.sin(varphi) * np.cos(theta)) / np.sqrt(2)
-        assert np.allclose(mean, expected, atol=tol, rtol=0)
-
-        var = (s1 ** 2) @ p - (s1 @ p).real ** 2
-        expected = (
-            3
-            + np.cos(2 * phi) * np.cos(varphi) ** 2
-            - np.cos(2 * theta) * np.sin(varphi) ** 2
-            - 2 * np.cos(theta) * np.sin(phi) * np.sin(2 * varphi)
-        ) / 4
-        assert np.allclose(var, expected, atol=tol, rtol=0)
-
-    def test_tensor_hermitian(self, theta, phi, varphi, monkeypatch, tol):
+    def test_tensor_hermitian(self, theta, phi, varphi, tol):
         """Test that a tensor product involving qml.Hermitian works correctly"""
         dev = qml.device("default.qubit", wires=3)
 
@@ -400,9 +443,7 @@ class TestTensorSample:
             ansatz(a, b, c)
             return sample(qml.PauliZ(0) @ qml.Hermitian(A, [1, 2]))
 
-        with monkeypatch.context() as m:
-            m.setattr("numpy.random.choice", lambda x, y, p: (x, p))
-            s1, p = circuit(theta, phi, varphi)
+        s1 = circuit(theta, phi, varphi)
 
         # s1 should only contain the eigenvalues of
         # the hermitian matrix tensor product Z
@@ -410,32 +451,19 @@ class TestTensorSample:
         eigvals = np.linalg.eigvalsh(np.kron(Z, A))
         assert set(np.round(s1, 8)).issubset(set(np.round(eigvals, 8)))
 
-        mean = s1 @ p
-        expected = 0.5 * (
-            -6 * np.cos(theta) * (np.cos(varphi) + 1)
-            - 2 * np.sin(varphi) * (np.cos(theta) + np.sin(phi) - 2 * np.cos(phi))
-            + 3 * np.cos(varphi) * np.sin(phi)
-            + np.sin(phi)
-        )
-        assert np.allclose(mean, expected, atol=tol, rtol=0)
+        zero_state = np.zeros(2 ** 3)
+        zero_state[0] = 1
+        psi = zero_state
+        psi = tensor_product([Rotx(theta), I, I]) @ zero_state
+        psi = tensor_product([I, Rotx(phi), I]) @ psi
+        psi = tensor_product([I, I, Rotx(varphi)]) @ psi
+        psi = tensor_product([CNOT, I]) @ psi
+        psi = tensor_product([I, CNOT]) @ psi
 
-        var = (s1 ** 2) @ p - (s1 @ p).real ** 2
-        expected = (
-            1057
-            - np.cos(2 * phi)
-            + 12 * (27 + np.cos(2 * phi)) * np.cos(varphi)
-            - 2 * np.cos(2 * varphi) * np.sin(phi) * (16 * np.cos(phi) + 21 * np.sin(phi))
-            + 16 * np.sin(2 * phi)
-            - 8 * (-17 + np.cos(2 * phi) + 2 * np.sin(2 * phi)) * np.sin(varphi)
-            - 8 * np.cos(2 * theta) * (3 + 3 * np.cos(varphi) + np.sin(varphi)) ** 2
-            - 24 * np.cos(phi) * (np.cos(phi) + 2 * np.sin(phi)) * np.sin(2 * varphi)
-            - 8
-            * np.cos(theta)
-            * (
-                4 * np.cos(phi)
-                * (4 + 8 * np.cos(varphi) + np.cos(2 * varphi) - (1 + 6 * np.cos(varphi)) * np.sin(varphi))
-                + np.sin(phi) * (15 + 8 * np.cos(varphi) - 11 * np.cos(2 * varphi) + 42 * np.sin(varphi) + 3 * np.sin(2 * varphi))
-            )
-        ) / 16
+        # Diagonalize according to the observable
+        eigvals, eigvecs = np.linalg.eigh(A)
+        psi = tensor_product([I, eigvecs.conj().T]) @ psi
 
-        assert np.allclose(var, expected, atol=tol, rtol=0)
+        expected_probabilities = np.abs(psi) ** 2
+
+        assert np.allclose(dev.probability(), expected_probabilities, atol=tol, rtol=0)

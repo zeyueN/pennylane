@@ -1,4 +1,4 @@
-# Copyright 2018 Xanadu Quantum Technologies Inc.
+# Copyright 2018-2020 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,8 +21,8 @@ import pennylane as qml
 from pennylane import numpy as np
 from pennylane.templates.layers import (CVNeuralNetLayers,
                                         StronglyEntanglingLayers,
-                                        RandomLayers,
-                                        _random_layer)
+                                        RandomLayers)
+from pennylane.templates.layers.random import random_layer
 from pennylane import RX, RY, RZ, CZ, CNOT
 
 
@@ -61,7 +61,7 @@ class TestCVNeuralNet:
                          [ 0.26999146, 0.26256351, 0.14722687, 0.23137066]])
             ]
 
-    def test_cvneuralnet_uses_correct_weights(self, gaussian_device_4modes, weights):
+    def test_cvneuralnet_uses_correct_weights(self, weights):
         """Tests that the CVNeuralNetLayers template uses the weigh parameters correctly."""
 
         with qml.utils.OperationRecorder() as rec:
@@ -119,7 +119,7 @@ class TestCVNeuralNet:
         qnode = qml.QNode(circuit, gaussian_device_4modes)
 
         wrong_weights = [np.array([1]) if i < 10 else np.array([1, 1]) for i in range(11)]
-        with pytest.raises(ValueError, match="The first dimension of the weight parameters"):
+        with pytest.raises(ValueError, match="the first dimension of the weight parameters"):
             qnode(wrong_weights)
 
 
@@ -132,7 +132,6 @@ class TestStronglyEntangling:
         n_layers = 2
         num_wires = n_subsystems
 
-        dev = qml.device('default.qubit', wires=num_wires)
         weights = np.random.randn(n_layers, num_wires, 3)
 
         with qml.utils.OperationRecorder() as rec:
@@ -159,7 +158,6 @@ class TestStronglyEntangling:
     def test_strong_ent_layers_uses_correct_number_of_imprimitives(self, n_layers, n_subsystems):
         """Test that StronglyEntanglingLayers uses the correct number of imprimitives."""
         imprimitive = CZ
-        dev = qml.device('default.qubit', wires=n_subsystems)
         weights = np.random.randn(n_layers, n_subsystems, 3)
 
         with qml.utils.OperationRecorder() as rec:
@@ -182,7 +180,7 @@ class TestStronglyEntangling:
 
         qnode = qml.QNode(circuit, dev)
 
-        with pytest.raises(ValueError, match="The range hyperparameter for all layers needs to be smaller than"):
+        with pytest.raises(ValueError, match="the range for all layers needs to be smaller than"):
             qnode(weights)
 
     def test_strong_ent_layers_illegal_ranges_exception(self):
@@ -198,7 +196,7 @@ class TestStronglyEntangling:
 
         qnode = qml.QNode(circuit, dev)
 
-        with pytest.raises(ValueError, match="StronglyEntanglingLayers expects ``ranges`` to be a list of integers"):
+        with pytest.raises(ValueError, match="'ranges' must be a list of integers"):
             qnode(weights)
 
     @pytest.mark.parametrize("n_layers, ranges", [(2, [1, 2, 4]),
@@ -216,8 +214,7 @@ class TestStronglyEntangling:
 
         qnode = qml.QNode(circuit, dev)
 
-        with pytest.raises(ValueError, match="StronglyEntanglingLayers expects ``ranges`` to contain "
-                                             "a range for each layer"):
+        with pytest.raises(ValueError, match="'ranges' must be of shape"):
             qnode(weights)
 
 
@@ -304,7 +301,6 @@ class TestRandomLayers:
         n_rots = 1
         n_wires = 2
         impr = CNOT
-        dev = qml.device('default.qubit', wires=n_wires)
         weights = np.random.randn(n_layers, n_rots)
 
         with qml.utils.OperationRecorder() as rec:
@@ -314,30 +310,28 @@ class TestRandomLayers:
         assert len(types) - types.count(impr) == n_layers
 
     def test_random_layer_ratio_imprimitive(self, ratio):
-        """Test that  _random_layer() has the right ratio of imprimitive gates."""
+        """Test that  random_layer() has the right ratio of imprimitive gates."""
         n_rots = 500
         n_wires = 2
         impr = CNOT
-        dev = qml.device('default.qubit', wires=n_wires)
         weights = np.random.randn(n_rots)
 
         with qml.utils.OperationRecorder() as rec:
-            _random_layer(weights=weights, wires=range(n_wires), ratio_imprim=ratio,
-                          imprimitive=CNOT, rotations=[RX, RY, RZ], seed=42)
+            random_layer(weights=weights, wires=range(n_wires), ratio_imprim=ratio,
+                         imprimitive=CNOT, rotations=[RX, RY, RZ], seed=42)
 
         types = [type(q) for q in rec.queue]
         ratio_impr = types.count(impr) / len(types)
         assert np.isclose(ratio_impr, ratio, atol=0.05)
 
     def test_random_layer_gate_types(self, n_subsystems, impr, rots):
-        """Test that  _random_layer() uses the correct types of gates."""
+        """Test that  random_layer() uses the correct types of gates."""
         n_rots = 20
-        dev = qml.device('default.qubit', wires=n_subsystems)
         weights = np.random.randn(n_rots)
 
         with qml.utils.OperationRecorder() as rec:
-            _random_layer(weights=weights, wires=range(n_subsystems), ratio_imprim=0.3,
-                          imprimitive=impr, rotations=rots, seed=42)
+            random_layer(weights=weights, wires=range(n_subsystems), ratio_imprim=0.3,
+                         imprimitive=impr, rotations=rots, seed=42)
 
         types = [type(q) for q in rec.queue]
         unique = set(types)
@@ -345,27 +339,25 @@ class TestRandomLayers:
         assert unique == gates
 
     def test_random_layer_numgates(self, n_subsystems):
-        """Test that _random_layer() uses the correct number of gates."""
+        """Test that random_layer() uses the correct number of gates."""
         n_rots = 5
-        dev = qml.device('default.qubit', wires=n_subsystems)
         weights = np.random.randn(n_rots)
 
         with qml.utils.OperationRecorder() as rec:
-            _random_layer(weights=weights, wires=range(n_subsystems), ratio_imprim=0.3,
-                          imprimitive=qml.CNOT, rotations=[RX, RY, RZ], seed=42)
+            random_layer(weights=weights, wires=range(n_subsystems), ratio_imprim=0.3,
+                         imprimitive=qml.CNOT, rotations=[RX, RY, RZ], seed=42)
 
         types = [type(q) for q in rec.queue]
         assert len(types) - types.count(qml.CNOT) == n_rots
 
     def test_random_layer_randomwires(self, n_subsystems):
-        """Test that  _random_layer() picks random wires."""
+        """Test that  random_layer() picks random wires."""
         n_rots = 500
-        dev = qml.device('default.qubit', wires=n_subsystems)
         weights = np.random.randn(n_rots)
 
         with qml.utils.OperationRecorder() as rec:
-            _random_layer(weights=weights, wires=range(n_subsystems), ratio_imprim=0.3,
-                          imprimitive=qml.CNOT, rotations=[RX, RY, RZ], seed=42)
+            random_layer(weights=weights, wires=range(n_subsystems), ratio_imprim=0.3,
+                         imprimitive=qml.CNOT, rotations=[RX, RY, RZ], seed=42)
 
         wires = [q._wires for q in rec.queue]
         wires_flat = [item for w in wires for item in w]
@@ -373,15 +365,14 @@ class TestRandomLayers:
         assert np.isclose(mean_wire, (n_subsystems - 1) / 2, atol=0.05)
 
     def test_random_layer_weights(self, n_subsystems, tol):
-        """Test that _random_layer() uses the correct weights."""
+        """Test that random_layer() uses the correct weights."""
         np.random.seed(12)
         n_rots = 5
-        dev = qml.device('default.qubit', wires=n_subsystems)
         weights = np.random.randn(n_rots)
 
         with qml.utils.OperationRecorder() as rec:
-            _random_layer(weights=weights, wires=range(n_subsystems), ratio_imprim=0.3,
-                          imprimitive=qml.CNOT, rotations=[RX, RY, RZ], seed=4)
+            random_layer(weights=weights, wires=range(n_subsystems), ratio_imprim=0.3,
+                         imprimitive=qml.CNOT, rotations=[RX, RY, RZ], seed=4)
 
         params = [q.parameters for q in rec.queue]
         params_flat = [item for p in params for item in p]

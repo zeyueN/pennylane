@@ -1,4 +1,4 @@
-# Copyright 2018 Xanadu Quantum Technologies Inc.
+# Copyright 2018-2020 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Unit tests for the computing gradients of quantum functions.
+Unit tests for computing Autograd gradients of quantum functions.
 """
 
 import pytest
@@ -21,7 +21,7 @@ import autograd.numpy as anp  # only to be used inside classical computational n
 import numpy as np
 
 import pennylane as qml
-from pennylane.plugins.default_qubit import Rotx as Rx, Roty as Ry, Rotz as Rz
+from gate_data import Rotx as Rx, Roty as Ry, Rotz as Rz
 
 
 alpha = 0.5  # displacement in tests

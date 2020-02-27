@@ -1,4 +1,4 @@
-# Copyright 2018 Xanadu Quantum Technologies Inc.
+# Copyright 2018-2020 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -76,22 +76,22 @@ def qubit_device_3_wires():
 
 @pytest.fixture(scope="session")
 def tensornet_device(n_subsystems):
-    return qml.device('expt.tensornet', wires=n_subsystems)
+    return qml.device('default.tensor', wires=n_subsystems)
 
 
 @pytest.fixture(scope="function")
 def tensornet_device_1_wire():
-    return qml.device('expt.tensornet', wires=1)
+    return qml.device('default.tensor', wires=1)
 
 
 @pytest.fixture(scope="function")
 def tensornet_device_2_wires():
-    return qml.device('expt.tensornet', wires=2)
+    return qml.device('default.tensor', wires=2)
 
 
 @pytest.fixture(scope="function")
 def tensornet_device_3_wires():
-    return qml.device('expt.tensornet', wires=3)
+    return qml.device('default.tensor', wires=3)
 
 
 @pytest.fixture(scope="session")

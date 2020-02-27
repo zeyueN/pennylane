@@ -1,4 +1,4 @@
-# Copyright 2018 Xanadu Quantum Technologies Inc.
+# Copyright 2018-2020 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ from scipy.linalg import block_diag
 import pennylane as qml
 from pennylane.qnodes.qubit import QubitQNode
 from pennylane.qnodes.base import QuantumFunctionError
-from pennylane.plugins.default_qubit import Y, Z
+from gate_data import Y, Z
 
 
 class TestMetricTensor:

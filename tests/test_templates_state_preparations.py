@@ -1,4 +1,4 @@
-# Copyright 2018 Xanadu Quantum Technologies Inc.
+# Copyright 2018-2020 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,9 +22,9 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 import pennylane as qml
-from pennylane.templates.state_preparations import (gray_code,
-                                                    BasisStatePreparation,
+from pennylane.templates.state_preparations import (BasisStatePreparation,
                                                     MottonenStatePreparation)
+from pennylane.templates.state_preparations.mottonen import gray_code
 
 
 class TestHelperFunctions:
@@ -113,7 +113,7 @@ class TestBasisStatePreparation:
         """Tests that the correct error message is raised when the number
         of qubits doesn't match the number of wires."""
 
-        with pytest.raises(ValueError, match="basis state must match the number of qubits"):
+        with pytest.raises(ValueError, match="'basis_state' must be of shape"):
             BasisStatePreparation(basis_state, wires)
 
     # fmt: off
@@ -126,7 +126,7 @@ class TestBasisStatePreparation:
         """Tests that the correct error messages is raised when
         the basis state contains numbers different from 0 and 1."""
 
-        with pytest.raises(ValueError, match="Basis state must only consist of 0s and 1s"):
+        with pytest.raises(ValueError, match="'basis_state' must only contain"):
             BasisStatePreparation(basis_state, wires)
 
 
@@ -262,7 +262,7 @@ class TestMottonenStatePreparation:
         assert np.allclose(probabilities, target_probabilities, atol=tol, rtol=0)
 
     # fmt: off
-    @pytest.mark.parametrize("state_vector,wires", [
+    @pytest.mark.parametrize("state_vector, wires", [
         ([1/2, 1/2], [0]),
         ([2/3, 0, 2j/3, -2/3], [0, 1]),
     ])
@@ -271,7 +271,7 @@ class TestMottonenStatePreparation:
         """Tests that the correct error messages is raised if
         the given state vector is not normalized."""
 
-        with pytest.raises(ValueError, match="State vector probabilities have to sum up to 1.0"):
+        with pytest.raises(ValueError, match="'state_vector' has to be of length"):
             MottonenStatePreparation(state_vector, wires)
 
     # fmt: off
@@ -285,6 +285,6 @@ class TestMottonenStatePreparation:
         the number of entries in the given state vector does not match
         with the number of wires in the system."""
 
-        with pytest.raises(ValueError, match="The state vector must be of size"):
+        with pytest.raises(ValueError, match="'state_vector' must be of shape"):
             MottonenStatePreparation(state_vector, wires)
 
