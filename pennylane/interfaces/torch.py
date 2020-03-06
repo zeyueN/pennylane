@@ -86,6 +86,11 @@ def kwargs_to_numpy(kwargs):
                 res[key] = val.cpu().detach().numpy()
             else:
                 res[key] = val.detach().numpy()
+
+            if res[key].dtype == np.float32:
+                # Increasing the precision here such that later normalization
+                # can take place without any trucation
+                res[key] = res[key].astype(dtype=np.float64)
         else:
             res[key] = val
 
