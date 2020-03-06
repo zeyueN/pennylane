@@ -48,13 +48,13 @@ def random_layer(weights, wires, ratio_imprim, imprimitive, rotations, seed):
     while i < len(weights):
         if np.random.random() > ratio_imprim:
             gate = np.random.choice(rotations)
-            wire = np.random.choice(wires)
+            wire = int(np.random.choice(wires))
             gate(weights[i], wires=wire)
             i += 1
         else:
             if len(wires) > 1:
                 on_wires = np.random.permutation(wires)[:2]
-                on_wires = list(on_wires)
+                on_wires = [int(wire) for wire in on_wires]
                 imprimitive(wires=on_wires)
 
 
