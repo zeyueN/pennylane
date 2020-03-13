@@ -22,6 +22,7 @@ simulation of a qubit-based quantum circuit architecture.
 import itertools
 
 import numpy as np
+import math
 
 from pennylane import QubitDevice, DeviceError, QubitStateVector, BasisState
 
@@ -137,7 +138,7 @@ class DefaultQubit(QubitDevice):
             wires (list[int]): list of wires where the provided state should
                 be initialized
         """
-        if not np.isclose(np.linalg.norm(input_state, 2), 1.0, atol=tolerance):
+        if not math.isclose(np.linalg.norm(input_state, 2), 1.0, abs_tol=tolerance):
             raise ValueError("Sum of amplitudes-squared does not equal one.")
 
         n_state_vector = input_state.shape[0]
