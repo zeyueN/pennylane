@@ -40,6 +40,7 @@
 `PennyLane <https://pennylane.readthedocs.io>`_ is a cross-platform Python library for **differentiable quantum programming**. Train a quantum computer the same way as a neural network.
  
 .. raw:: html
+
     <p align="center">
     <img src="https://raw.githubusercontent.com/XanaduAI/pennylane/master/doc/_static/jigsaw.png" width="600px" align="center">
     </p>
