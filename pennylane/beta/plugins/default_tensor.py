@@ -126,6 +126,7 @@ class DefaultTensor(Device):
         }
         self._rep = representation
         self._contraction_method = contraction_method
+        self.analytic = True
         self.reset()
 
     def reset(self):
