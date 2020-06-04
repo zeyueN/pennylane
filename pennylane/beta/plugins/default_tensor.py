@@ -426,8 +426,8 @@ class DefaultTensor(Device):
     def pre_apply(self):
         self.reset()
 
-    def apply(self, operation, wires, par):
-        if operation == "QubitStateVector":
+    def _apply(self, operation, wires, par):
+        if operation.name == "QubitStateVector":
             state = self._array(par[0], dtype=self.C_DTYPE)
             if state.ndim == 1 and state.shape[0] == 2 ** self.num_wires:
                 self._state_node.tensor = self._reshape(state, [2] * self.num_wires)
@@ -440,7 +440,7 @@ class DefaultTensor(Device):
                     )
                 )
             return
-        if operation == "BasisState":
+        if operation.name == "BasisState":
             n = len(par[0])
             if n == 0 or n > self.num_wires or not set(par[0]).issubset({0, 1}):
                 raise ValueError(
@@ -458,7 +458,13 @@ class DefaultTensor(Device):
             self._state_node.tensor = self._asarray(state_node, dtype=self.C_DTYPE)
             return
 
-        A = self._get_operator_matrix(operation, par)
+        A = self._get_operator_matrix(operation.name, operation.parameters)
+        """
+        if operation.name != "QubitStateVector" and operation.name != "BasisState":
+            A = operation.matrix
+        else:
+            A = None
+        """
         num_mult_idxs = len(wires)
         A = self._reshape(A, [2] * num_mult_idxs * 2)
         op_node = self._add_node(A, wires=wires, name=operation)
@@ -469,6 +475,13 @@ class DefaultTensor(Device):
         self._state_node = tn.contract_between(
             op_node, self._state_node, output_edge_order=self._free_edges
         )
+
+    def apply(self, operations, **kwargs):
+        for operation in operations:
+            # number of wires on device
+            wires = operation.wires
+            par = operation.parameters
+            self._apply(operation, wires, par)
 
     def create_nodes_from_tensors(self, tensors: list, wires: list, observable_names: list):
         """Helper function for creating tensornetwork nodes based on tensors.
@@ -483,14 +496,18 @@ class DefaultTensor(Device):
         """
         return [self._add_node(A, w, name=o) for A, w, o in zip(tensors, wires, observable_names)]
 
-    def expval(self, observable, wires, par):
+    def expval(self, observable):
+        wires = observable.wires
+        par = observable.params
 
         if not isinstance(observable, list):
             observable, wires, par = [observable], [wires], [par]
 
         tensors = []
         for o, p, w in zip(observable, par, wires):
-            A = self._get_operator_matrix(o, p)
+            # A = self._get_operator_matrix(o, p)
+            print(o)
+            A = o.matrix
             num_mult_idxs = len(w)
             tensors.append(self._reshape(A, [2] * num_mult_idxs * 2))
 

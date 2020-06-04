@@ -156,22 +156,25 @@ class Device(abc.ABC):
         """
         return cls._capabilities
 
-    def execute(self, queue, observables, parameters={}, **kwargs):
-        """Execute a queue of quantum operations on the device and then measure the given observables.
+    def execute(self, circuit, **kwargs):
+        """Execute a queue of quantum operations on the device and then
+        measure the given observables.
 
-        For plugin developers: Instead of overwriting this, consider implementing a suitable subset of
-        :meth:`pre_apply`, :meth:`apply`, :meth:`post_apply`, :meth:`pre_measure`,
-        :meth:`expval`, :meth:`var`, :meth:`sample`, :meth:`post_measure`, and :meth:`execution_context`.
+        For plugin developers: instead of overwriting this, consider
+        implementing a suitable subset of
+
+        * :meth:`apply`
+
+        * :meth:`~.generate_samples`
+
+        * :meth:`~.probability`
+
+        Additional keyword arguments may be passed to the this method
+        that can be utilised by :meth:`apply`. An example would be passing
+        the ``QNode`` hash that can be used later for parametric compilation.
 
         Args:
-            queue (Iterable[~.operation.Operation]): operations to execute on the device
-            observables (Iterable[~.operation.Observable]): observables to measure and return
-            parameters (dict[int, list[ParameterDependency]]): Mapping from free parameter index to the list of
-                :class:`Operations <pennylane.operation.Operation>` (in the queue) that depend on it.
-
-        Keyword Args:
-            return_native_type (bool): If True, return the result in whatever type the device uses
-                internally, otherwise convert it into array[float]. Default: False.
+            circuit (~.CircuitGraph): circuit to execute on the device
 
         Raises:
             QuantumFunctionError: if the value of :attr:`~.Observable.return_type` is not supported
@@ -179,6 +182,63 @@ class Device(abc.ABC):
         Returns:
             array[float]: measured value(s)
         """
+        self.check_validity(circuit.operations, circuit.observables)
+
+        self._circuit_hash = circuit.hash
+
+        # apply all circuit operations
+        self.apply(circuit.operations, **kwargs)
+
+        # compute the required statistics
+        results = self.statistics(circuit.observables)
+
+        # Ensures that a combination with sample does not put
+        # expvals and vars in superfluous arrays
+        all_sampled = all(obs.return_type is Sample for obs in circuit.observables)
+        if circuit.is_sampled and not all_sampled:
+            return self._asarray(results, dtype="object")
+
+        return self._asarray(results)
+
+    def statistics(self, observables):
+        """Process measurement results from circuit execution and return statistics.
+
+        This includes returning expectation values, variance, samples and probabilities.
+
+        Args:
+            observables (List[:class:`Observable`]): the observables to be measured
+
+        Raises:
+            QuantumFunctionError: if the value of :attr:`~.Observable.return_type` is not supported
+
+        Returns:
+            Union[float, List[float]]: the corresponding statistics
+        """
+        results = []
+
+        for obs in observables:
+            # Pass instances directly
+            if obs.return_type is Expectation:
+                results.append(self.expval(obs))
+
+            elif obs.return_type is Variance:
+                results.append(self.var(obs))
+
+            elif obs.return_type is Sample:
+                results.append(np.array(self.sample(obs)))
+
+            elif obs.return_type is Probability:
+                results.append(self.probability(wires=obs.wires))
+
+            elif obs.return_type is not None:
+                raise QuantumFunctionError(
+                    "Unsupported return type specified for observable {}".format(obs.name)
+                )
+
+        return results
+
+    """
+    def execute(self, queue, observables, parameters={}, **kwargs):
         self.check_validity(queue, observables)
         self._op_queue = queue
         self._obs_queue = observables
@@ -236,6 +296,7 @@ class Device(abc.ABC):
                 return self._asarray(results, dtype="object")
 
             return self._asarray(results)
+    """
 
     @property
     def op_queue(self):

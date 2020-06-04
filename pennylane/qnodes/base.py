@@ -750,16 +750,16 @@ class BaseQNode(qml.QueuingContext):
         self.device.reset()
 
         temp = self.kwargs.get("use_native_type", False)
-        if isinstance(self.device, qml.QubitDevice):
+        #if isinstance(self.device, qml.QubitDevice):
             # TODO: remove this if statement once all devices are ported to the QubitDevice API
-            ret = self.device.execute(self.circuit, return_native_type=temp)
-        else:
-            ret = self.device.execute(
-                self.circuit.operations,
-                self.circuit.observables,
-                self.variable_deps,
-                return_native_type=temp,
-            )
+        ret = self.device.execute(self.circuit, return_native_type=temp)
+        # else:
+        #     ret = self.device.execute(
+        #         self.circuit.operations,
+        #         self.circuit.observables,
+        #         self.variable_deps,
+        #         return_native_type=temp,
+        #     )
         return self.output_conversion(ret)
 
     def evaluate_obs(self, obs, args, kwargs):
