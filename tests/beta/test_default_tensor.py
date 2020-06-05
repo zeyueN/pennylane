@@ -329,7 +329,7 @@ class TestStateFunctions:
         H2[0, 1] = H2[0, 1].conj()
         with pytest.raises(ValueError, match="must be Hermitian"):
             hermitian(H2)
- 
+
 
 class TestDefaultTensorIntegration:
     """Integration tests for default.tensor. This test ensures it integrates
@@ -701,13 +701,19 @@ class TestTensorExpval:
         dev = qml.device("default.tensor", wires=3)
         dev.reset()
 
-        dev.apply("RX", wires=[0], par=[theta])
-        dev.apply("RX", wires=[1], par=[phi])
-        dev.apply("RX", wires=[2], par=[varphi])
-        dev.apply("CNOT", wires=[0, 1], par=[])
-        dev.apply("CNOT", wires=[1, 2], par=[])
+        obs = qml.PauliX(0) @ qml.PauliY(2)
 
-        res = dev.expval(["PauliX", "PauliY"], [[0], [2]], [[], []])
+        dev.apply(
+            [
+                qml.RX(theta, wires=[0]),
+                qml.RX(phi, wires=[1]),
+                qml.RX(varphi, wires=[2]),
+                qml.CNOT(wires=[0, 1]),
+                qml.CNOT(wires=[1, 2])
+            ]
+        )
+
+        res = dev.expval(obs)
         expected = np.sin(theta) * np.sin(phi) * np.sin(varphi)
 
         assert np.allclose(res, expected, atol=tol, rtol=0)
@@ -716,13 +722,20 @@ class TestTensorExpval:
         """Test that a tensor product involving PauliZ and Identity works correctly"""
         dev = qml.device("default.tensor", wires=3)
         dev.reset()
-        dev.apply("RX", wires=[0], par=[theta])
-        dev.apply("RX", wires=[1], par=[phi])
-        dev.apply("RX", wires=[2], par=[varphi])
-        dev.apply("CNOT", wires=[0, 1], par=[])
-        dev.apply("CNOT", wires=[1, 2], par=[])
+        obs = qml.PauliZ(0) @ qml.Identity(1) @ qml.PauliZ(2)
 
-        res = dev.expval(["PauliZ", "Identity", "PauliZ"], [[0], [1], [2]], [[], [], []])
+        dev.apply(
+            [
+                qml.RX(theta, wires=[0]),
+                qml.RX(phi, wires=[1]),
+                qml.RX(varphi, wires=[2]),
+                qml.CNOT(wires=[0, 1]),
+                qml.CNOT(wires=[1, 2])
+            ],
+
+        )
+
+        res = dev.expval(obs)
         expected = np.cos(varphi)*np.cos(phi)
 
         assert np.allclose(res, expected, atol=tol, rtol=0)
@@ -730,14 +743,21 @@ class TestTensorExpval:
     def test_pauliz_hadamard(self, theta, phi, varphi, tol):
         """Test that a tensor product involving PauliZ and PauliY and hadamard works correctly"""
         dev = qml.device("default.tensor", wires=3)
-        dev.reset()
-        dev.apply("RX", wires=[0], par=[theta])
-        dev.apply("RX", wires=[1], par=[phi])
-        dev.apply("RX", wires=[2], par=[varphi])
-        dev.apply("CNOT", wires=[0, 1], par=[])
-        dev.apply("CNOT", wires=[1, 2], par=[])
+        obs = qml.PauliZ(0) @ qml.Hadamard(1) @ qml.PauliY(2)
 
-        res = dev.expval(["PauliZ", "Hadamard", "PauliY"], [[0], [1], [2]], [[], [], []])
+        dev.reset()
+        dev.apply(
+            [
+                qml.RX(theta, wires=[0]),
+                qml.RX(phi, wires=[1]),
+                qml.RX(varphi, wires=[2]),
+                qml.CNOT(wires=[0, 1]),
+                qml.CNOT(wires=[1, 2])
+            ],
+
+        )
+
+        res = dev.expval(obs)
         expected = -(np.cos(varphi) * np.sin(phi) + np.sin(varphi) * np.cos(theta)) / np.sqrt(2)
 
         assert np.allclose(res, expected, atol=tol, rtol=0)
@@ -746,12 +766,6 @@ class TestTensorExpval:
         """Test that a tensor product involving qml.Hermitian works correctly"""
         dev = qml.device("default.tensor", wires=3)
         dev.reset()
-        dev.apply("RX", wires=[0], par=[theta])
-        dev.apply("RX", wires=[1], par=[phi])
-        dev.apply("RX", wires=[2], par=[varphi])
-        dev.apply("CNOT", wires=[0, 1], par=[])
-        dev.apply("CNOT", wires=[1, 2], par=[])
-
         A = np.array(
             [
                 [-6, 2 + 1j, -3, -5 + 2j],
@@ -761,7 +775,20 @@ class TestTensorExpval:
             ]
         )
 
-        res = dev.expval(["PauliZ", "Hermitian"], [[0], [1, 2]], [[], [A]])
+        obs = qml.PauliZ(0) @ qml.Hermitian(A, wires=[1, 2])
+
+        dev.apply(
+            [
+                qml.RX(theta, wires=[0]),
+                qml.RX(phi, wires=[1]),
+                qml.RX(varphi, wires=[2]),
+                qml.CNOT(wires=[0, 1]),
+                qml.CNOT(wires=[1, 2])
+            ],
+
+        )
+
+        res = dev.expval(obs)
         expected = 0.5 * (
             -6 * np.cos(theta) * (np.cos(varphi) + 1)
             - 2 * np.sin(varphi) * (np.cos(theta) + np.sin(phi) - 2 * np.cos(phi))
@@ -775,11 +802,6 @@ class TestTensorExpval:
         """Test that a tensor product involving two Hermitian matrices works correctly"""
         dev = qml.device("default.tensor", wires=3)
         dev.reset()
-        dev.apply("RX", wires=[0], par=[theta])
-        dev.apply("RX", wires=[1], par=[phi])
-        dev.apply("RX", wires=[2], par=[varphi])
-        dev.apply("CNOT", wires=[0, 1], par=[])
-        dev.apply("CNOT", wires=[1, 2], par=[])
 
         A1 = np.array([[1, 2],
                        [2, 4]])
@@ -793,7 +815,20 @@ class TestTensorExpval:
             ]
         )
 
-        res = dev.expval(["Hermitian", "Hermitian"], [[0], [1, 2]], [[A1], [A2]])
+        obs = qml.Hermitian(A1, wires=[0]) @ qml.Hermitian(A2, wires=[1, 2])
+
+        dev.apply(
+            [
+                qml.RX(theta, wires=[0]),
+                qml.RX(phi, wires=[1]),
+                qml.RX(varphi, wires=[2]),
+                qml.CNOT(wires=[0, 1]),
+                qml.CNOT(wires=[1, 2])
+            ],
+
+        )
+
+        res = dev.expval(obs)
         expected = 0.25 * (
             -30
             + 4 * np.cos(phi) * np.sin(theta)
@@ -816,13 +851,20 @@ class TestTensorExpval:
         """Test that a tensor product involving an Hermitian matrix and the identity works correctly"""
         dev = qml.device("default.tensor", wires=2)
         dev.reset()
-        dev.apply("RY", wires=[0], par=[theta])
-        dev.apply("RY", wires=[1], par=[phi])
-        dev.apply("CNOT", wires=[0, 1], par=[])
-
         A = np.array([[1.02789352, 1.61296440 - 0.3498192j], [1.61296440 + 0.3498192j, 1.23920938 + 0j]])
 
-        res = dev.expval(["Hermitian", "Identity"], [[0], [1]], [[A], []])
+        obs = qml.Hermitian(A, wires=[0]) @ qml.Identity(wires=[1])
+
+        dev.apply(
+            [
+                qml.RY(theta, wires=[0]),
+                qml.RY(phi, wires=[1]),
+                qml.CNOT(wires=[0, 1])
+            ],
+
+        )
+
+        res = dev.expval(obs)
 
         a = A[0, 0]
         re_b = A[0, 1].real
@@ -840,13 +882,21 @@ class TestTensorVar:
         """Test that a tensor product involving PauliX and PauliY works correctly"""
         dev = qml.device("default.tensor", wires=3)
         dev.reset()
-        dev.apply("RX", wires=[0], par=[theta])
-        dev.apply("RX", wires=[1], par=[phi])
-        dev.apply("RX", wires=[2], par=[varphi])
-        dev.apply("CNOT", wires=[0, 1], par=[])
-        dev.apply("CNOT", wires=[1, 2], par=[])
 
-        res = dev.var(["PauliX", "PauliY"], [[0], [2]], [[], [], []])
+        obs = qml.PauliX(0) @ qml.PauliY(2)
+
+        dev.apply(
+            [
+                qml.RX(theta, wires=[0]),
+                qml.RX(phi, wires=[1]),
+                qml.RX(varphi, wires=[2]),
+                qml.CNOT(wires=[0, 1]),
+                qml.CNOT(wires=[1, 2])
+            ],
+
+        )
+
+        res = dev.var(obs)
 
         expected = (
             8 * np.sin(theta) ** 2 * np.cos(2 * varphi) * np.sin(phi) ** 2
@@ -862,14 +912,22 @@ class TestTensorVar:
     def test_pauliz_hadamard(self, theta, phi, varphi, tol):
         """Test that a tensor product involving PauliZ and PauliY and hadamard works correctly"""
         dev = qml.device("default.tensor", wires=3)
-        dev.reset()
-        dev.apply("RX", wires=[0], par=[theta])
-        dev.apply("RX", wires=[1], par=[phi])
-        dev.apply("RX", wires=[2], par=[varphi])
-        dev.apply("CNOT", wires=[0, 1], par=[])
-        dev.apply("CNOT", wires=[1, 2], par=[])
 
-        res = dev.var(["PauliZ", "Hadamard", "PauliY"], [[0], [1], [2]], [[], [], []])
+        obs = qml.PauliZ(0) @ qml.Hadamard(1) @ qml.PauliY(2)
+
+        dev.reset()
+        dev.apply(
+            [
+                qml.RX(theta, wires=[0]),
+                qml.RX(phi, wires=[1]),
+                qml.RX(varphi, wires=[2]),
+                qml.CNOT(wires=[0, 1]),
+                qml.CNOT(wires=[1, 2])
+            ],
+
+        )
+
+        res = dev.var(obs)
 
         expected = (
             3
@@ -884,11 +942,6 @@ class TestTensorVar:
         """Test that a tensor product involving qml.Hermitian works correctly"""
         dev = qml.device("default.tensor", wires=3)
         dev.reset()
-        dev.apply("RX", wires=[0], par=[theta])
-        dev.apply("RX", wires=[1], par=[phi])
-        dev.apply("RX", wires=[2], par=[varphi])
-        dev.apply("CNOT", wires=[0, 1], par=[])
-        dev.apply("CNOT", wires=[1, 2], par=[])
 
         A = np.array(
             [
@@ -899,7 +952,20 @@ class TestTensorVar:
             ]
         )
 
-        res = dev.var(["PauliZ", "Hermitian"], [[0], [1, 2]], [[], [A]])
+        obs = qml.PauliZ(0) @ qml.Hermitian(A, wires=[1, 2])
+
+        dev.apply(
+            [
+                qml.RX(theta, wires=[0]),
+                qml.RX(phi, wires=[1]),
+                qml.RX(varphi, wires=[2]),
+                qml.CNOT(wires=[0, 1]),
+                qml.CNOT(wires=[1, 2])
+            ],
+
+        )
+
+        res = dev.var(obs)
 
         expected = (
             1057
@@ -933,7 +999,7 @@ class TestTensorVar:
         ) / 16
 
         assert np.allclose(res, expected, atol=tol, rtol=0)
-        
+
 
 class TestSample:
     """Tests that samples are properly calculated."""
@@ -948,19 +1014,20 @@ class TestSample:
         # initialized during reset
         tensornet_device_2_wires.reset()
 
-        tensornet_device_2_wires.apply('RX', wires=[0], par=[1.5708])
-        tensornet_device_2_wires.apply('RX', wires=[1], par=[1.5708])
+        tensornet_device_2_wires.apply(
+            [qml.RX(1.5708, wires=[0]), qml.RX(1.5708, wires=[1])]
+        )
 
         tensornet_device_2_wires.shots = 10
-        s1 = tensornet_device_2_wires.sample('PauliZ', [0], [])
+        s1 = tensornet_device_2_wires.sample(qml.PauliZ(wires=[0]))
         assert np.array_equal(s1.shape, (10,))
 
         tensornet_device_2_wires.shots = 12
-        s2 = tensornet_device_2_wires.sample('PauliZ', [1], [])
+        s2 = tensornet_device_2_wires.sample(qml.PauliZ(wires=[1]))
         assert np.array_equal(s2.shape, (12,))
 
         tensornet_device_2_wires.shots = 17
-        s3 = tensornet_device_2_wires.sample('CZ', [0, 1], [])
+        s3 = tensornet_device_2_wires.sample(qml.PauliX(0) @ qml.PauliZ(1))
         assert np.array_equal(s3.shape, (17,))
 
     def test_sample_values(self, tensornet_device_2_wires, tol):
@@ -973,9 +1040,9 @@ class TestSample:
         # initialized during reset
         tensornet_device_2_wires.reset()
 
-        tensornet_device_2_wires.apply('RX', wires=[0], par=[1.5708])
+        tensornet_device_2_wires.apply([qml.RX(1.5708, wires=[0])])
 
-        s1 = tensornet_device_2_wires.sample('PauliZ', [0], [])
+        s1 = tensornet_device_2_wires.sample(qml.PauliZ(0))
 
         # s1 should only contain 1 and -1, which is guaranteed if
         # they square to 1
@@ -990,15 +1057,23 @@ class TestTensorSample:
         """Test that a tensor product involving PauliX and PauliY works correctly"""
         dev = qml.device("default.tensor", wires=3, shots=10000)
         dev.reset()
-        dev.apply("RX", wires=[0], par=[theta])
-        dev.apply("RX", wires=[1], par=[phi])
-        dev.apply("RX", wires=[2], par=[varphi])
-        dev.apply("CNOT", wires=[0, 1], par=[])
-        dev.apply("CNOT", wires=[1, 2], par=[])
+
+        obs = qml.PauliX(0) @ qml.PauliY(2)
+
+        dev.apply(
+            [
+                qml.RX(theta, wires=[0]),
+                qml.RX(phi, wires=[1]),
+                qml.RX(varphi, wires=[2]),
+                qml.CNOT(wires=[0, 1]),
+                qml.CNOT(wires=[1, 2])
+            ],
+
+        )
 
         with monkeypatch.context() as m:
             m.setattr("numpy.random.choice", lambda x, y, p: (x, p))
-            s1, prob = dev.sample(["PauliX", "PauliY"], [[0], [2]], [[], [], []])
+            s1, prob = dev.sample(obs)
 
         # s1 should only contain 1 and -1
         assert np.allclose(s1 ** 2, 1, atol=tol, rtol=0)
@@ -1022,15 +1097,22 @@ class TestTensorSample:
         """Test that a tensor product involving PauliZ and PauliY and hadamard works correctly"""
         dev = qml.device("default.tensor", wires=3)
         dev.reset()
-        dev.apply("RX", wires=[0], par=[theta])
-        dev.apply("RX", wires=[1], par=[phi])
-        dev.apply("RX", wires=[2], par=[varphi])
-        dev.apply("CNOT", wires=[0, 1], par=[])
-        dev.apply("CNOT", wires=[1, 2], par=[])
+
+        obs = qml.PauliZ(0) @ qml.Hadamard(1) @ qml.PauliY(2)
+        dev.apply(
+            [
+                qml.RX(theta, wires=[0]),
+                qml.RX(phi, wires=[1]),
+                qml.RX(varphi, wires=[2]),
+                qml.CNOT(wires=[0, 1]),
+                qml.CNOT(wires=[1, 2])
+            ],
+
+        )
 
         with monkeypatch.context() as m:
             m.setattr("numpy.random.choice", lambda x, y, p: (x, p))
-            s1, p = dev.sample(["PauliZ", "Hadamard", "PauliY"], [[0], [1], [2]], [[], [], []])
+            s1, p = dev.sample(obs)
 
         # s1 should only contain 1 and -1
         assert np.allclose(s1 ** 2, 1, atol=tol, rtol=0)
@@ -1052,11 +1134,6 @@ class TestTensorSample:
         """Test that a tensor product involving qml.Hermitian works correctly"""
         dev = qml.device("default.tensor", wires=3)
         dev.reset()
-        dev.apply("RX", wires=[0], par=[theta])
-        dev.apply("RX", wires=[1], par=[phi])
-        dev.apply("RX", wires=[2], par=[varphi])
-        dev.apply("CNOT", wires=[0, 1], par=[])
-        dev.apply("CNOT", wires=[1, 2], par=[])
 
         A = np.array(
             [
@@ -1067,9 +1144,20 @@ class TestTensorSample:
             ]
         )
 
+        obs = qml.PauliZ(0) @ qml.Hermitian(A, wires=[1, 2])
+        dev.apply(
+            [
+                qml.RX(theta, wires=[0]),
+                qml.RX(phi, wires=[1]),
+                qml.RX(varphi, wires=[2]),
+                qml.CNOT(wires=[0, 1]),
+                qml.CNOT(wires=[1, 2])
+            ],
+
+        )
         with monkeypatch.context() as m:
             m.setattr("numpy.random.choice", lambda x, y, p: (x, p))
-            s1, p = dev.sample(["PauliZ", "Hermitian"], [[0], [1, 2]], [[], [A]])
+            s1, p = dev.sample(obs)
 
         # s1 should only contain the eigenvalues of
         # the hermitian matrix tensor product Z

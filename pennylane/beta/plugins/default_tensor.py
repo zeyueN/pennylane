@@ -514,12 +514,14 @@ class DefaultTensor(Device):
         nodes = self.create_nodes_from_tensors(tensors, wires, observable)
         return self.ev(nodes, wires)
 
-    def var(self, observable, wires, par):
+    def var(self, observable):
+        wires = observable.wires
+        par = observable.params
 
         if not isinstance(observable, list):
             observable, wires, par = [observable], [wires], [par]
 
-        matrices = [self._get_operator_matrix(o, p) for o, p in zip(observable, par)]
+        matrices = [o.matrix for o in observable]
 
         tensors = [self._reshape(A, [2] * len(wires) * 2) for A, wires in zip(matrices, wires)]
         tensors_of_squared_matrices = [
@@ -533,12 +535,14 @@ class DefaultTensor(Device):
 
         return self.ev(obs_nodes_for_squares, wires) - self.ev(obs_nodes, wires) ** 2
 
-    def sample(self, observable, wires, par):
+    def sample(self, observable):
+        wires = observable.wires
+        par = observable.params
 
         if not isinstance(observable, list):
             observable, wires, par = [observable], [wires], [par]
 
-        matrices = [self._get_operator_matrix(o, p) for o, p in zip(observable, par)]
+        matrices = [o.matrix for o in observable]
 
         decompositions = [spectral_decomposition(A) for A in matrices]
         eigenvalues, projector_groups = list(zip(*decompositions))
