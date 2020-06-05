@@ -505,8 +505,6 @@ class DefaultTensor(Device):
 
         tensors = []
         for o, p, w in zip(observable, par, wires):
-            # A = self._get_operator_matrix(o, p)
-            print(o)
             A = o.matrix
             num_mult_idxs = len(w)
             tensors.append(self._reshape(A, [2] * num_mult_idxs * 2))
