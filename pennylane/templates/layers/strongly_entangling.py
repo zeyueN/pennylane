@@ -69,7 +69,7 @@ def StronglyEntanglingLayers(weights, wires, ranges=None, imprimitive=CNOT):
 
     Args:
 
-        weights (array[float]): array of weights of shape ``(:math:`L`, :math:`M`, 3)``
+        weights (array[float]): array of weights of shape ``(L, M, 3)``
         wires (Sequence[int] or int): qubit indices that the template acts on
         ranges (Sequence[int]): sequence determining the range hyperparameter for each subsequent layer; if None
                                 using :math:`r=l \mod M` for the :math:`l`th layer and :math:`M` wires.
