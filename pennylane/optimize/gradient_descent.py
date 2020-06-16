@@ -13,7 +13,7 @@
 # limitations under the License.
 """Gradient descent optimizer"""
 
-import autograd
+import pennylane as qml
 from pennylane.utils import _flatten, unflatten
 
 
@@ -85,7 +85,7 @@ class GradientDescentOptimizer:
             g = grad_fn(x)  # just call the supplied grad function
         else:
             # default is autograd
-            g = autograd.grad(objective_fn)(x)  # pylint: disable=no-value-for-parameter
+            g = qml.grad(objective_fn)(x)  # pylint: disable=no-value-for-parameter
         return g
 
     def apply_grad(self, grad, x):

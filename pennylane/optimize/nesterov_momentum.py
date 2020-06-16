@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Nesterov momentum optimizer"""
-import autograd
+import pennylane as qml
 from pennylane.utils import _flatten, unflatten
 from .momentum import MomentumOptimizer
 
@@ -63,5 +63,5 @@ class NesterovMomentumOptimizer(MomentumOptimizer):
             g = grad_fn(shifted_x)  # just call the supplied grad function
         else:
             # default is autograd
-            g = autograd.grad(objective_fn)(shifted_x)  # pylint: disable=no-value-for-parameter
+            g = qml.grad(objective_fn)(shifted_x)  # pylint: disable=no-value-for-parameter
         return g
