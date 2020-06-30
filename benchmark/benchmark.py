@@ -190,7 +190,7 @@ def cli():
         )
         bms = [
             mod.Benchmark(
-                qml.device(short_name, wires=args.wires, **k), qnode_type=q, verbose=args.verbose,
+                qml.device(short_name, wires=args.wires, **k), verbose=args.verbose,
             )
             for short_name, k in zip(devs, dev_kwargs)
             for q in args.qnode
@@ -210,7 +210,7 @@ def cli():
     for supplied_name, short_name, k in zip(args.device, devs, dev_kwargs):
         dev = qml.device(short_name, wires=args.wires, **k)
         for q in args.qnode:
-            bm = mod.Benchmark(dev, qnode_type=q, verbose=args.verbose)
+            bm = mod.Benchmark(dev, verbose=args.verbose)
             bm.setup()
             text = (
                 col(f"'{bm.name}'", "blue")

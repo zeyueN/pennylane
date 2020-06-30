@@ -1,0 +1,15 @@
+default.qubit, bm_num_parameters, 0.20123
+default.qubit, bm_num_gates, 0.4223
+default.qubit, bm_num_qubits, 0.10123
+default.qubit, bm_small, 0.3
+default.qubit, bm_large, 0.2
+default.qubit.tf, bm_num_parameters, 0.2123
+default.qubit.tf, bm_num_gates, 0.40223
+default.qubit.tf, bm_num_qubits, 0.0123
+default.qubit.tf, bm_small, 0.03
+default.qubit.tf, bm_large, 0.3
+qulacs.simulator, bm_num_parameters, 0.1
+qulacs.simulator, bm_num_gates, 0.01
+qulacs.simulator, bm_num_qubits, 0.5
+qulacs.simulator, bm_small, 0.1
+qulacs.simulator, bm_large, 0.2
