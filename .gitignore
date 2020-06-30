@@ -29,4 +29,5 @@ timer.dat
 tmp/*
 benchmark/revisions/
 benchmark/spiderplot*
+benchmark/pl_*_device_comparison.csv
 venv
