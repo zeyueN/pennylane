@@ -28,4 +28,5 @@ qchem/tests/tmp/timer.dat
 timer.dat
 tmp/*
 benchmark/revisions/
+benchmark/spiderplot*
 venv
