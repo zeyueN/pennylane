@@ -26,7 +26,7 @@ labels_translation = {
 }
 
 # load the benchmark results
-data = np.loadtxt('pl_xxx_device_comparison.csv', delimiter=',', dtype=str,
+data = np.loadtxt('dummy_pl_xxx_device_comparison.csv', delimiter=',', dtype=str,
                   converters={0: lambda s: s.strip(),
                               1: lambda s: s.strip(),
                               2: lambda s: float(s.strip())})
