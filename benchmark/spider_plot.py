@@ -16,7 +16,7 @@ import numpy as np
 from math import pi
 
 # dictionary to translate between benchmarks and plot labels
-labels_translation = {
+TRANSLATION = {
     'bm_num_parameters': 'lots of params',
     'bm_num_gates': 'deep circuit',
     'bm_num_qubits': 'wide circuit',
@@ -70,7 +70,7 @@ for device in devices:
     angles += angles[:1]
 
     # make labels
-    labels = [labels_translation[category] if category in labels_translation else category for category in categories]
+    labels = [TRANSLATION[category] if category in TRANSLATION else category for category in categories]
 
     plt.xticks(angles[:-1], labels, color='grey', size=15)
     ax.set_rlabel_position(0)
