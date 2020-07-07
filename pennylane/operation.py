@@ -280,6 +280,13 @@ class Operator(abc.ABC):
         """
         return self._matrix(*self.parameters)
 
+    @property
+    def matrix_tensor(self):
+        return self._matrix_tensor(*self.parameters)
+
+    def _matrix_tensor(self, *args):
+        return args
+
     @classmethod
     def _eigvals(cls, *params):
         """Eigenvalues of the operator.
