@@ -282,6 +282,9 @@ class Operator(abc.ABC):
 
     @property
     def matrix_tensor(self):
+        if self.inverse:
+            return self._matrix_tensor_inv(*self.parameters)
+
         return self._matrix_tensor(*self.parameters)
 
     def _matrix_tensor(self, *args):
