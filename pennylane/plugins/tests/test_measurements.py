@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests that the different measurement types work correctly on a device."""
-# pylint: disable=no-self-use
+# pylint: disable=no-self-use,too-many-arguments
 import numpy as np
 from flaky import flaky
 
