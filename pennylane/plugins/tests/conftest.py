@@ -107,7 +107,7 @@ def skip_if_observables():
             # skip if the observable is not supported by the device
             if obs not in dev.observables:
                 pytest.skip(
-                    "Test skipped for unsupported observable {} on device {}.".format(obs, dev.name)
+                    "Test skipped for unsupported observable {} on {} device.".format(obs, dev.name)
                 )
 
     return _skip_if_observables
