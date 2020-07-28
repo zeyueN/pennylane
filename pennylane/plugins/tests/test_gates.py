@@ -348,7 +348,9 @@ class TestInverseGatesQubit:
     """Test the device's probability vector after application of inverse of gates."""
 
     @pytest.mark.parametrize("op,mat", single_qubit)
-    def test_single_qubit_no_parameters(self, device, init_state, op, mat, tol, skip_if, skip_if_ops):
+    def test_single_qubit_no_parameters(
+        self, device, init_state, op, mat, tol, skip_if, skip_if_ops
+    ):
         """Test inverse single qubit gate application."""
         n_wires = 1
         dev = device(n_wires)
@@ -371,7 +373,9 @@ class TestInverseGatesQubit:
 
     @pytest.mark.parametrize("theta", [0.5432, -0.232])
     @pytest.mark.parametrize("op,func", single_qubit_param)
-    def test_single_qubit_parameters(self, device, init_state, op, func, theta, tol, skip_if, skip_if_ops):
+    def test_single_qubit_parameters(
+        self, device, init_state, op, func, theta, tol, skip_if, skip_if_ops
+    ):
         """Test inverse single qubit gates taking one scalar parameter."""
         n_wires = 1
         dev = device(n_wires)
@@ -442,7 +446,9 @@ class TestInverseGatesQubit:
 
     @pytest.mark.parametrize("theta", [0.5432, -0.232])
     @pytest.mark.parametrize("op,func", two_qubit_param)
-    def test_two_qubit_parameters(self, device, init_state, op, func, theta, tol, skip_if, skip_if_ops):
+    def test_two_qubit_parameters(
+        self, device, init_state, op, func, theta, tol, skip_if, skip_if_ops
+    ):
         """Test inverse of two qubit gates taking one parameter."""
         n_wires = 2
         dev = device(n_wires)
@@ -487,7 +493,9 @@ class TestInverseGatesQubit:
         assert np.allclose(res, expected, atol=tol(dev.analytic))
 
     @pytest.mark.parametrize("op, mat", three_qubit)
-    def test_three_qubit_no_parameters(self, device, init_state, op, mat, tol, skip_if, skip_if_ops):
+    def test_three_qubit_no_parameters(
+        self, device, init_state, op, mat, tol, skip_if, skip_if_ops
+    ):
         """Test inverse three qubit gates without parameters."""
         n_wires = 3
         dev = device(n_wires)

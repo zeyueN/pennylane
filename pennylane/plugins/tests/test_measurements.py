@@ -365,7 +365,9 @@ class TestSample:
             np.var(res), 0.25 * (np.sin(theta) - 4 * np.cos(theta)) ** 2, atol=tol(False)
         )
 
-    def test_sample_values_hermitian_multi_qubit(self, device, tol, skip_if_ops, skip_if_observables):
+    def test_sample_values_hermitian_multi_qubit(
+        self, device, tol, skip_if_ops, skip_if_observables
+    ):
         """Tests if the samples of a multi-qubit Hermitian observable returned by sample have
         the correct values
         """
