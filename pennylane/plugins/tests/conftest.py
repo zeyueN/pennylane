@@ -81,10 +81,10 @@ def skip_if():
 
 @pytest.fixture(scope="session")
 def skip_if_ops():
-    """Fixture to skip tests."""
+    """Fixture to skip tests for unsupported operations."""
 
     def _skip_if_ops(dev, ops):
-        """ Skip test if device has any of the given capabilities. """
+        """ Skip test if device does not support an operation. """
 
         for op in ops:
             # skip if the operation is not supported by the device
@@ -99,10 +99,10 @@ def skip_if_ops():
 
 @pytest.fixture(scope="session")
 def skip_if_observables():
-    """Fixture to skip tests."""
+    """Fixture to skip tests for unsupported observables."""
 
     def _skip_if_observables(dev, observables):
-        """ Skip test if device has any of the given capabilities. """
+        """ Skip test if device does not support an observable. """
 
         for obs in observables:
             # skip if the observable is not supported by the device
