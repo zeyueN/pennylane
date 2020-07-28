@@ -20,11 +20,12 @@ works correctly an a device.
 from cmath import exp
 from math import cos, sin, sqrt
 
-import pytest
 import numpy as np
-import pennylane as qml
-from scipy.linalg import block_diag
+import pytest
 from flaky import flaky
+from scipy.linalg import block_diag
+
+import pennylane as qml
 
 np.random.seed(42)
 

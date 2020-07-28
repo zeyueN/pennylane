@@ -14,8 +14,9 @@
 """Tests that the different measurement types work correctly on a device."""
 # pylint: disable=no-self-use
 import numpy as np
-import pennylane as qml
 from flaky import flaky
+
+import pennylane as qml
 
 # ==========================================================
 # Some useful global variables
