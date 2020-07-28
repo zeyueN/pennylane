@@ -420,7 +420,7 @@ class TestTensorSample:
         n_wires = 3
         dev = device(n_wires)
         skip_if(dev, {"tensor_observable": False})
-        skip_if_ops(dev, [qml.RX.__name__, qml.RY.__name__, qml.CNOT.__name__])
+        skip_if_ops(dev, [qml.RX.__name__, qml.CNOT.__name__])
         skip_if_observables(dev, [qml.PauliX.__name__, qml.PauliY.__name__])
 
         theta = 0.432
@@ -462,7 +462,7 @@ class TestTensorSample:
         dev = device(n_wires)
         skip_if(dev, {"tensor_observable": False})
         skip_if_ops(dev, [qml.RX.__name__, qml.CNOT.__name__])
-        skip_if_observables(dev, [qml.PauliX.__name__, qml.PauliY.__name__, qml.Hadamard.__name__])
+        skip_if_observables(dev, [qml.PauliY.__name__, qml.PauliZ.__name__, qml.Hadamard.__name__])
 
         theta = 0.432
         phi = 0.123
@@ -503,7 +503,7 @@ class TestTensorSample:
         dev = device(n_wires)
         skip_if(dev, {"tensor_observable": False})
         skip_if_ops(dev, [qml.RX.__name__, qml.CNOT.__name__])
-        skip_if_observables(dev, [qml.PauliX.__name__, qml.Hermitian.__name__])
+        skip_if_observables(dev, [qml.PauliZ.__name__, qml.Hermitian.__name__])
 
         theta = 0.432
         phi = 0.123
